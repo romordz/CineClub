@@ -1,123 +1,163 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import Header from './components/Header';
 import './Main.css';
 
 function Main() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [peliculas, setPeliculas] = useState([]);
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get('search');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
-  }, []);
+
+    const fetchPeliculas = async () => {
+      try {
+        const url = searchQuery 
+          ? `http://localhost:3000/api/peliculas?search=${encodeURIComponent(searchQuery)}`
+          : 'http://localhost:3000/api/peliculas';
+
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok) {
+          setPeliculas(data);
+        } else {
+          console.error('Error al obtener las películas');
+        }
+      } catch (error) {
+        console.error('Error de conexión con el servidor', error);
+      }
+    };
+
+    fetchPeliculas();
+  }, [searchQuery]);
+
+  const peliculasPorGenero = peliculas.reduce((acc, pelicula) => {
+    if (!acc[pelicula.genero]) {
+      acc[pelicula.genero] = [];
+    }
+    acc[pelicula.genero].push(pelicula);
+    return acc;
+  }, {});
+
+  const handleMovieClick = (id) => {
+    navigate(`/movie/${id}`);
+  };
+
+  const clearSearch = () => {
+    navigate('/Main');
+  };
+
+  const renderStars = (rating) => {
+    const numericRating = Number(rating);
+    const fullStars = Math.floor(numericRating);
+    const decimalPart = numericRating - fullStars;
+    
+    return (
+      <span className="stars">
+        {'★'.repeat(fullStars)}
+        {decimalPart >= 0.5 && <span className="half-star">½</span>}
+        {'☆'.repeat(5 - Math.ceil(numericRating))}
+      </span>
+    );
+  };
 
   return (
     <div>
-      <header>
-        <div className="logo-container">
-          <img
-            src="https://cdn-icons-png.flaticon.com/512/3938/3938627.png"
-            alt="CineClub Logo"
-          />
-          <h1>CineClub</h1>
-        </div>
-        <div className="search-bar">
-          <input type="text" placeholder="Buscar peliculas..." />
-          <button>Buscar</button>
-        </div>
-        <div className="user-info">
-          {user && user.avatar ? (
-            <img
-              src={`data:image/jpeg;base64,${user.avatar}`}
-              alt="User Profile"
-            />
-          ) : (
-            <img
-              src="https://static.vecteezy.com/system/resources/previews/024/983/914/non_2x/simple-user-default-icon-free-png.png"
-              alt="Default Profile"
-            />
-          )}
-          <span>{user ? user.nombre : 'Usuario'}</span>
-        </div>
-      </header>
-      <main>
-        <section className="section">
-          <h2>Destacados</h2>
-          <div className="movie-grid">
-            <div className="movie-card">
-              <img
-                src="https://hips.hearstapps.com/es.h-cdn.co/fotoes/images/media/imagenes/reportajes/los-20-posters-de-peliculas-mas-creativos/caballero-oscuro-joker/7055604-1-esl-ES/CABALLERO-OSCURO-JOKER.jpg"
-                alt="Movie Poster"
-              />
-              <h3>Batman: The dark knight</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
-              </div>
-            </div>
-            <div className="movie-card">
-              <img
-                src="https://moviepostermexico.com/cdn/shop/products/w3XORYUDxH53iiuWRw6nqrZdwybBM0kI88F9ccHiDmw_2066x.jpg?v=1619731898"
-                alt="Movie Poster"
-              />
-              <h3>Avengers: Endgame</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
-              </div>
-            </div>
-            <div className="movie-card">
-              <img
-                src="https://moviepostermexico.com/cdn/shop/products/us_ver3_xxlg_1895x.jpg?v=1599144725"
-                alt="Movie Poster"
-              />
-              <h3>Us</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
-              </div>
-            </div>
+      <Header user={user} />
+      <section className="product-list">
+        {searchQuery && (
+          <div className="search-results-header">
+            <h2>Resultados para: "{searchQuery}"</h2>
+            <button onClick={clearSearch} className="clear-search">
+              Limpiar búsqueda
+            </button>
           </div>
-        </section>
-        <section className="section">
-          <h2>Accion</h2>
-          <div className="movie-grid">
-            <div className="movie-card">
-              <img
-                src="https://moviepostermexico.com/cdn/shop/products/w3XORYUDxH53iiuWRw6nqrZdwybBM0kI88F9ccHiDmw_2066x.jpg?v=1619731898"
-                alt="Movie Poster"
-              />
-              <h3>Avengers: Endgame</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
-              </div>
+        )}
+
+        {searchQuery ? (
+          <section className="section">
+            <div className="movie-grid">
+              {peliculas.map((pelicula) => (
+                <div 
+                  className="movie-card" 
+                  key={pelicula.id}
+                  onClick={() => handleMovieClick(pelicula.id)}
+                >
+                  <img
+                    src={`data:image/jpeg;base64,${pelicula.imagen}`}
+                    alt="Movie Poster"
+                  />
+                  <h3>{pelicula.titulo}</h3>
+                  <div className="rating">
+                    {renderStars(pelicula.promedio)}
+                    <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
+                  </div>
+                </div>
+              ))}
+              {peliculas.length === 0 && (
+                <p className="no-results">No se encontraron películas</p>
+              )}
             </div>
-            <div className="movie-card">
-              <img
-                src="https://i.pinimg.com/originals/27/f0/43/27f0435a856f72d444f8dec35e1f310b.jpg"
-                alt="Movie Poster"
-              />
-              <h3>Guardianes de la galaxia</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
+          </section>
+        ) : (
+          <>
+            <section className="section">
+              <h2>Películas Recientes</h2>
+              <div className="movie-grid">
+                {peliculas.slice(0, 5).map((pelicula) => (
+                  <div 
+                    className="movie-card" 
+                    key={pelicula.id}
+                    onClick={() => handleMovieClick(pelicula.id)}
+                  >
+                    <img
+                      src={`data:image/jpeg;base64,${pelicula.imagen}`}
+                      alt="Movie Poster"
+                    />
+                    <h3>{pelicula.titulo}</h3>
+                    <div className="rating">
+                      {renderStars(pelicula.promedio)}
+                      <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="movie-card">
-              <img
-                src="https://moviepostermexico.com/cdn/shop/products/GLADIATOR1_2048x.jpg?v=1595230143"
-                alt="Movie Poster"
-              />
-              <h3>Gladiador</h3>
-              <div className="rating">
-                <span className="stars">★★★★☆</span>
-                <span className="number">4.0</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
+            </section>
+
+            {Object.keys(peliculasPorGenero).map((genero) => (
+              <section className="section" key={genero}>
+                <h2>{genero}</h2>
+                <div className="movie-grid">
+                  {peliculasPorGenero[genero].map((pelicula) => (
+                    <div 
+                      className="movie-card" 
+                      key={pelicula.id}
+                      onClick={() => handleMovieClick(pelicula.id)}
+                    >
+                      <img
+                        src={`data:image/jpeg;base64,${pelicula.imagen}`}
+                        alt="Movie Poster"
+                      />
+                      <h3>{pelicula.titulo}</h3>
+                      <div className="rating">
+                        {renderStars(pelicula.promedio)}
+                        <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
+        )}
+      </section>
     </div>
   );
 }

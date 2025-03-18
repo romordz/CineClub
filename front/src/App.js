@@ -4,18 +4,21 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Register from './Register';
 import Login from './Login';
 import Main from './Main';
+import Perfil from './Perfil';
+import AgregarPelicula from './AgregarPelicula';
+import MovieDetails from './MovieDetails';
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Si el usuario visita "/", renderizamos Login */}
         <Route path="/" element={<Login />} />
-
-        {/* Rutas específicas */}
         <Route path="/login" element={<Login />} />
-        <Route path="/Register" element={<Register />} />
-        <Route path="/Main" element={<Main />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/main" element={<Main />} />
+        <Route path="/perfil" element={<Perfil />} />
+        <Route path="/agregar-pelicula" element={<AgregarPelicula />} />
+        <Route path="/movie/:id" element={<MovieDetails />} />
       </Routes>
     </Router>
   );
