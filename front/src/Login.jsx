@@ -5,6 +5,8 @@ import './Login.css';
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,27 +19,29 @@ function Login() {
       });
       const data = await response.json();
       if (response.ok) {
-        alert('Inicio de sesión exitoso');
+        setMessage('Inicio de sesión exitoso');
+        setMessageType('success');
         localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/Main');
+        setTimeout(() => {
+          navigate('/Main');
+        }, 2000);
       } else {
-        alert(data.error || 'Error al iniciar sesión');
+        setMessage(data.error || 'Error al iniciar sesión');
+        setMessageType('error');
       }
     } catch (error) {
       console.error(error);
-      alert('Error de conexión con el servidor');
+      setMessage('Error de conexión con el servidor');
+      setMessageType('error');
     }
   };
 
   return (
     <div className="login-container">
-      {/* Cabecera */}
       <div className="login-header">
         <h1>Inicio de sesión</h1>
         <p>Bienvenido a CineClub! Por favor inicia sesión para empezar a reseñar películas.</p>
       </div>
-
-      {/* Formulario */}
       <form className="login-form" onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="email">Email</label>
@@ -49,8 +53,10 @@ function Login() {
             onChange={(e) => setEmail(e.target.value)}
             required 
           />
+          {messageType === 'error' && (message === 'El usuario fue eliminado' || message === 'Usuario no encontrado') && (
+            <span className="error">{message}</span>
+          )}
         </div>
-
         <div className="form-group">
           <label htmlFor="password">Password</label>
           <input 
@@ -61,12 +67,17 @@ function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required 
           />
+          {messageType === 'error' && message === 'Credenciales inválidas' && (
+            <span className="error">{message}</span>
+          )}
         </div>
-
         <button type="submit" className="login-btn">Login</button>
       </form>
-
-      {/* Pie de formulario */}
+      {message && messageType !== 'error' && (
+        <div className={`alert ${messageType}`}>
+          {message}
+        </div>
+      )}
       <div className="login-footer">
         <p>No tienes cuenta? <a href="/register">Registrate</a></p>
       </div>
