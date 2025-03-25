@@ -37,12 +37,18 @@ const Perfil = () => {
           const response = await fetch(`http://localhost:3000/api/resenias/usuario/${userData.id}`);
           if (!response.ok) throw new Error('Error obteniendo reseñas del usuario');
           const reviewsData = await response.json();
-          setUserReviews(reviewsData.map(review => ({
-            ...review,
-            pelicula_id: review.pelicula_id
-          })));
+        
+          if (reviewsData.success && Array.isArray(reviewsData.data)) {
+            setUserReviews(reviewsData.data.map(review => ({
+              ...review,
+              pelicula_id: review.pelicula_id
+            })));
+          } else {
+            setUserReviews([]);
+          }
         } catch (error) {
           console.error(error);
+          setUserReviews([]);
         }
       };
   
@@ -58,9 +64,18 @@ const Perfil = () => {
         const response = await fetch(`http://localhost:3000/api/favoritos/usuario/${user.id}`);
         if (!response.ok) throw new Error('Error obteniendo favoritos');
         const favoritesData = await response.json();
-        setUserFavorites(favoritesData);
+        
+        // Verifica si la respuesta tiene la estructura esperada
+        if (favoritesData.success && Array.isArray(favoritesData.data)) {
+          setUserFavorites(favoritesData.data);
+        } else if (Array.isArray(favoritesData)) { // Para compatibilidad con la respuesta antigua
+          setUserFavorites(favoritesData);
+        } else {
+          setUserFavorites([]);
+        }
       } catch (error) {
         console.error(error);
+        setUserFavorites([]);
       }
     };
   

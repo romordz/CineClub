@@ -36,18 +36,33 @@ app.post('/api/register', upload.single('fotoPerfil'), (req, res) => {
   const { nombre, email, password, fechaNacimiento } = req.body;
   
   const fotoPerfil = req.file ? req.file.buffer.toString('base64') : null;
-
   const fecha_registro = new Date();
 
   db.query(
-    'INSERT INTO usuarios (nombre, email, contraseña, fecha_nacimiento, avatar, fecha_registro) VALUES (?, ?, ?, ?, ?, ?)',
+    'CALL sp_RegistrarUsuario(?, ?, ?, ?, ?, ?, @resultado, @mensaje)',
     [nombre, email, password, fechaNacimiento, fotoPerfil, fecha_registro],
     (err, result) => {
       if (err) {
         console.error(err);
         return res.status(500).json({ error: 'Error al registrar el usuario' });
       }
-      return res.status(200).json({ message: 'Usuario registrado correctamente' });
+      
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
+          if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Error al obtener resultado del registro' });
+          }
+          
+          const { resultado, mensaje } = output[0];
+          if (resultado === 1) {
+            return res.status(200).json({ message: mensaje });
+          } else {
+            return res.status(400).json({ error: mensaje });
+          }
+        }
+      );
     }
   );
 });
@@ -58,40 +73,51 @@ app.post('/api/register', upload.single('fotoPerfil'), (req, res) => {
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
 
-  db.query('SELECT * FROM usuarios WHERE email = ?', [email], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error en la base de datos' });
-    }
-    if (results.length === 0) {
-      return res.status(400).json({ error: 'Usuario no encontrado' });
-    }
-
-    const user = results[0];
-
-    if (user.activo === 0) {
-      return res.status(403).json({ error: 'El usuario fue eliminado' });
-    }
-
-    if (user.contraseña !== password) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
-
-    console.log('User data from database:', user);
-
-    return res.json({
-      message: 'Inicio de sesión exitoso',
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email,
-        fecha_nacimiento: user.fecha_nacimiento,
-        contraseña: user.contraseña,
-        rol_id: user.rol_id,
-        avatar: user.avatar
+  // Primero llamar al stored procedure
+  db.query(
+    'CALL sp_LoginUsuario(?, ?, @resultado, @mensaje, @id, @nombre, @email, @fecha_nacimiento, @avatar, @rol_id)',
+    [email, password],
+    (err, results) => {
+      if (err) {
+        console.error('Error al ejecutar el stored procedure:', err);
+        return res.status(500).json({ error: 'Error en la base de datos' });
       }
-    });
-  });
+      
+      // Luego obtener los parámetros de salida
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje, @id AS id, @nombre AS nombre, @email AS email, @fecha_nacimiento AS fecha_nacimiento, @avatar AS avatar, @rol_id AS rol_id',
+        (err, output) => {
+          if (err) {
+            console.error('Error al obtener resultados:', err);
+            return res.status(500).json({ error: 'Error al procesar el login' });
+          }
+          
+          const result = output[0];
+          console.log('Resultado del login:', result); // Para depuración
+          
+          if (result.resultado === 1) {
+            return res.json({
+              message: result.mensaje,
+              user: {
+                id: result.id,
+                nombre: result.nombre,
+                email: result.email,
+                fecha_nacimiento: result.fecha_nacimiento,
+                rol_id: result.rol_id,
+                avatar: result.avatar
+              }
+            });
+          } else {
+            const statusCode = result.mensaje === 'Usuario no encontrado' ? 400 : 
+                             result.mensaje === 'El usuario fue eliminado' ? 403 : 
+                             result.mensaje === 'Credenciales inválidas' ? 401 : 500;
+            
+            return res.status(statusCode).json({ error: result.mensaje });
+          }
+        }
+      );
+    }
+  );
 });
 
 // ---------------------------------------------------------
@@ -101,43 +127,59 @@ app.post('/api/updateUser', upload.single('avatar'), (req, res) => {
   const { id, nombre, email, fecha_nacimiento, contraseña } = req.body;
   const avatar = req.file ? req.file.buffer.toString('base64') : null;
 
-  db.query('SELECT * FROM usuarios WHERE id = ?', [id], (err, results) => {
+  db.query('SELECT contraseña FROM usuarios WHERE id = ?', [id], (err, results) => {
     if (err) {
       console.error(err);
-      return res.status(500).json({ error: 'Error al obtener los datos del usuario' });
+      return res.status(500).json({ error: 'Error al verificar usuario' });
     }
+    
     if (results.length === 0) {
       return res.status(400).json({ error: 'Usuario no encontrado' });
     }
 
-    const currentUser = results[0];
-    const updatedPassword = contraseña || currentUser.contraseña;
+    const updatedPassword = contraseña || results[0].contraseña;
 
-    const query = avatar
-      ? 'UPDATE usuarios SET nombre = ?, email = ?, fecha_nacimiento = ?, contraseña = ?, avatar = ? WHERE id = ?'
-      : 'UPDATE usuarios SET nombre = ?, email = ?, fecha_nacimiento = ?, contraseña = ? WHERE id = ?';
-
-    const params = avatar
-      ? [nombre, email, fecha_nacimiento, updatedPassword, avatar, id]
-      : [nombre, email, fecha_nacimiento, updatedPassword, id];
-
-    db.query(query, params, (err, result) => {
-      if (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-          return res.status(400).json({ error: 'El correo electrónico ya está en uso' });
-        }
-        console.error(err);
-        return res.status(500).json({ error: 'Error al actualizar el usuario' });
-      }
-      db.query('SELECT * FROM usuarios WHERE id = ?', [id], (err, results) => {
+    db.query(
+      'CALL sp_ActualizarUsuario(?, ?, ?, ?, ?, ?, @resultado, @mensaje, @nombre, @email, @fecha_nacimiento, @avatar, @rol_id)',
+      [id, nombre, email, fecha_nacimiento, updatedPassword, avatar],
+      (err, results) => {
         if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Error al obtener los datos actualizados del usuario' });
+          console.error('Error al ejecutar stored procedure:', err);
+          return res.status(500).json({ error: 'Error al actualizar usuario' });
         }
-        const updatedUser = results[0];
-        return res.status(200).json({ message: 'Usuario actualizado correctamente', user: updatedUser });
-      });
-    });
+
+        db.query(
+          'SELECT @resultado AS resultado, @mensaje AS mensaje, @nombre AS nombre, @email AS email, @fecha_nacimiento AS fecha_nacimiento, @avatar AS avatar, @rol_id AS rol_id',
+          (err, output) => {
+            if (err) {
+              console.error('Error al obtener resultados:', err);
+              return res.status(500).json({ error: 'Error al procesar actualización' });
+            }
+
+            const result = output[0];
+            
+            if (result.resultado === 1) {
+              return res.status(200).json({
+                message: result.mensaje,
+                user: {
+                  id: parseInt(id),
+                  nombre: result.nombre,
+                  email: result.email,
+                  fecha_nacimiento: result.fecha_nacimiento,
+                  avatar: result.avatar,
+                  rol_id: result.rol_id
+                }
+              });
+            } else {
+              const statusCode = result.mensaje === 'El correo electrónico ya está en uso' ? 400 : 
+                               result.mensaje === 'Usuario no encontrado' ? 404 : 500;
+              
+              return res.status(statusCode).json({ error: result.mensaje });
+            }
+          }
+        );
+      }
+    );
   });
 });
 
@@ -147,13 +189,45 @@ app.post('/api/updateUser', upload.single('avatar'), (req, res) => {
 app.post('/api/deleteUser', (req, res) => {
   const { id } = req.body;
 
-  db.query('UPDATE usuarios SET activo = 0 WHERE id = ?', [id], (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al desactivar el usuario' });
+  if (!id) {
+    return res.status(400).json({ error: 'Se requiere el ID del usuario' });
+  }
+
+  db.query(
+    'CALL sp_DesactivarUsuario(?, @resultado, @mensaje)',
+    [id],
+    (err, results) => {
+      if (err) {
+        console.error('Error al ejecutar stored procedure:', err);
+        return res.status(500).json({ error: 'Error al desactivar usuario' });
+      }
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
+          if (err) {
+            console.error('Error al obtener resultados:', err);
+            return res.status(500).json({ error: 'Error al procesar desactivación' });
+          }
+
+          const result = output[0];
+          
+          if (result.resultado === 1) {
+            return res.status(200).json({ 
+              message: result.mensaje 
+            });
+          } else {
+            const statusCode = result.mensaje === 'Usuario no encontrado' ? 404 : 
+                             result.mensaje === 'El usuario ya estaba desactivado' ? 400 : 500;
+            
+            return res.status(statusCode).json({ 
+              error: result.mensaje 
+            });
+          }
+        }
+      );
     }
-    return res.status(200).json({ message: 'Usuario desactivado correctamente' });
-  });
+  );
 });
 
 // ---------------------------------------------------------
@@ -163,15 +237,44 @@ app.post('/api/agregarPelicula', upload.single('imagen'), (req, res) => {
   const { titulo, sinopsis, director, genero, anio } = req.body;
   const imagen = req.file ? req.file.buffer.toString('base64') : null;
 
+  if (!titulo || !director || !genero || !anio) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
   db.query(
-    'INSERT INTO peliculas (titulo, descripcion, fecha_lanzamiento, genero_id, imagen, director) VALUES (?, ?, ?, ?, ?, ?)',
-    [titulo, sinopsis, anio, genero, imagen, director],
-    (err, result) => {
+    'CALL sp_AgregarPelicula(?, ?, ?, ?, ?, ?, @resultado, @mensaje, @pelicula_id)',
+    [titulo, sinopsis, director, genero, anio, imagen],
+    (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al agregar la película' });
+        console.error('Error al ejecutar stored procedure:', err);
+        return res.status(500).json({ error: 'Error al agregar película' });
       }
-      return res.status(200).json({ message: 'Película agregada correctamente' });
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje, @pelicula_id AS pelicula_id',
+        (err, output) => {
+          if (err) {
+            console.error('Error al obtener resultados:', err);
+            return res.status(500).json({ error: 'Error al procesar la película' });
+          }
+
+          const result = output[0];
+          
+          if (result.resultado === 1) {
+            return res.status(200).json({ 
+              message: result.mensaje,
+              pelicula_id: result.pelicula_id
+            });
+          } else {
+            const statusCode = result.mensaje === 'El género especificado no existe' ? 400 : 
+                             result.mensaje === 'Ya existe una película con este título y director' ? 409 : 500;
+            
+            return res.status(statusCode).json({ 
+              error: result.mensaje 
+            });
+          }
+        }
+      );
     }
   );
 });
@@ -180,12 +283,12 @@ app.post('/api/agregarPelicula', upload.single('imagen'), (req, res) => {
 // RUTA PARA OBTENER TODOS LOS GÉNEROS
 // ---------------------------------------------------------
 app.get('/api/generos', (req, res) => {
-  db.query('SELECT * FROM generos', (err, results) => {
+  db.query('CALL sp_ObtenerGeneros()', (err, results) => {
     if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener los géneros' });
+      console.error('Error al obtener géneros:', err);
+      return res.status(500).json({ error: 'Error al obtener géneros' });
     }
-    return res.status(200).json(results);
+    return res.status(200).json(results[0]);
   });
 });
 
@@ -193,100 +296,113 @@ app.get('/api/generos', (req, res) => {
 // RUTA PARA OBTENER TODAS LAS PELÍCULAS
 // ---------------------------------------------------------
 app.get('/api/peliculas', (req, res) => {
-  const searchTerm = req.query.search;
-  let query = `
-    SELECT 
-      p.id, 
-      p.titulo, 
-      p.descripcion, 
-      p.fecha_lanzamiento, 
-      p.imagen, 
-      p.director, 
-      g.nombre AS genero,
-      COALESCE(AVG(r.puntuacion), 0) AS promedio
-    FROM peliculas p
-    JOIN generos g ON p.genero_id = g.id
-    LEFT JOIN Reseñas r ON p.id = r.pelicula_id
-  `;
+  const searchTerm = req.query.search || null;
 
-  const params = [];
-
-  if (searchTerm) {
-    query += ' WHERE p.titulo LIKE ?';
-    params.push(`%${searchTerm}%`);
-  }
-
-  query += ' GROUP BY p.id ORDER BY p.fecha_lanzamiento DESC';
-
-  db.query(query, params, (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener las películas' });
+  db.query(
+    'CALL sp_BuscarPeliculas(?)',
+    [searchTerm],
+    (err, results) => {
+      if (err) {
+        console.error('Error al buscar películas:', err);
+        return res.status(500).json({ error: 'Error al buscar películas' });
+      }
+      return res.status(200).json(results[0]);
     }
-    return res.status(200).json(results);
-  });
+  );
 });
 
 app.get('/api/peliculas/:id', (req, res) => {
   const movieId = req.params.id;
-  const query = `
-    SELECT 
-      p.*, 
-      g.nombre AS genero,
-      COALESCE(AVG(r.puntuacion), 0) AS promedio,
-      COUNT(r.id) AS total_resenias
-    FROM peliculas p
-    JOIN generos g ON p.genero_id = g.id
-    LEFT JOIN Reseñas r ON p.id = r.pelicula_id
-    WHERE p.id = ?
-    GROUP BY p.id
-  `;
-  
-  db.query(query, [movieId], (err, results) => {
+
+  if (isNaN(movieId)) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
+
+  db.query('CALL sp_ObtenerDetallePelicula(?)', [movieId], (err, results) => {
     if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener la película' });
+      console.error('Error:', err);
+      return res.status(500).json({ error: 'Error al obtener película' });
     }
-    if (results.length === 0) {
+    
+    if (results[0].length === 0) {
       return res.status(404).json({ error: 'Película no encontrada' });
     }
-    return res.status(200).json(results[0]);
+    
+    return res.status(200).json(results[0][0]);
   });
 });
 
 app.get('/api/resenias/:peliculaId', (req, res) => {
   const peliculaId = req.params.peliculaId;
-  
-  const query = `
-    SELECT r.id, r.usuario_id, r.comentario, r.puntuacion, r.fecha_creacion, u.nombre as autor 
-    FROM Reseñas r
-    JOIN usuarios u ON r.usuario_id = u.id
-    WHERE pelicula_id = ?
-    ORDER BY fecha_creacion DESC
-  `;
 
-  db.query(query, [peliculaId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener las reseñas' });
+  if (isNaN(peliculaId)) {
+    return res.status(400).json({ error: 'ID de película inválido' });
+  }
+
+  db.query(
+    'CALL sp_ObtenerReseniasPorPelicula(?)',
+    [peliculaId],
+    (err, results) => {
+      if (err) {
+        console.error('Error al obtener reseñas:', err);
+        return res.status(500).json({ error: 'Error al obtener reseñas' });
+      }
+      
+      const reseñas = results[0];
+      
+      const reseñasFormateadas = reseñas.map(reseña => ({
+        ...reseña,
+        autor_avatar: reseña.autor_avatar ? `data:image/jpeg;base64,${reseña.autor_avatar}` : null
+      }));
+      
+      return res.status(200).json(reseñasFormateadas);
     }
-    return res.status(200).json(results);
-  });
+  );
 });
 
 app.post('/api/resenias', (req, res) => {
   const { usuario_id, pelicula_id, comentario, puntuacion } = req.body;
-  const fecha_creacion = new Date();
+  console.log('Datos recibidos:', req.body);
+
+  if (!usuario_id || !pelicula_id || !comentario || !puntuacion) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
 
   db.query(
-    'INSERT INTO Reseñas (usuario_id, pelicula_id, comentario, puntuacion, fecha_creacion) VALUES (?, ?, ?, ?, ?)',
-    [usuario_id, pelicula_id, comentario, puntuacion, fecha_creacion],
-    (err, result) => {
+    'CALL sp_CrearResena(?, ?, ?, ?, @resultado, @mensaje, @resena_id)',
+    [usuario_id, pelicula_id, comentario, puntuacion],
+    (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al guardar la reseña' });
+        console.error('Error al crear reseña:', err);
+        return res.status(500).json({ error: 'Error al crear reseña' });
       }
-      return res.status(200).json({ message: 'Reseña guardada correctamente' });
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje, @resena_id AS resena_id',
+        (err, output) => {
+          if (err) {
+            console.error('Error al obtener resultados:', err);
+            return res.status(500).json({ error: 'Error al verificar creación de reseña' });
+          }
+
+          const { resultado, mensaje, resena_id } = output[0];
+          
+          if (resultado === 1) {
+            return res.status(201).json({ 
+              message: mensaje,
+              resena_id: resena_id
+            });
+          } else {
+            const statusCode = mensaje.includes('no encontrad') ? 404 : 
+                             mensaje.includes('ya has reseñado') ? 409 : 
+                             mensaje.includes('puntuación') ? 400 : 500;
+            
+            return res.status(statusCode).json({ 
+              error: mensaje 
+            });
+          }
+        }
+      );
     }
   );
 });
@@ -295,18 +411,29 @@ app.put('/api/resenias/:id', (req, res) => {
   const reviewId = req.params.id;
   const { comentario, puntuacion } = req.body;
 
+  if (!comentario || typeof comentario !== 'string') {
+    return res.status(400).json({ error: 'El comentario es requerido y debe ser texto' });
+  }
+
+  if (!puntuacion || isNaN(puntuacion) || puntuacion < 1 || puntuacion > 5) {
+    return res.status(400).json({ error: 'La puntuación debe ser un número entre 1 y 5' });
+  }
+
   db.query(
-    'UPDATE Reseñas SET comentario = ?, puntuacion = ? WHERE id = ?',
+    'UPDATE Reseñas SET comentario = ?, puntuacion = ?, fecha_actualizacion = NOW() WHERE id = ?',
     [comentario, puntuacion, reviewId],
     (err, result) => {
       if (err) {
         console.error(err);
-        return res.status(500).json({ error: 'Error al modificar la reseña' });
+        return res.status(500).json({ error: 'Error en la base de datos' });
       }
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Reseña no encontrada' });
       }
-      return res.status(200).json({ message: 'Reseña modificada correctamente' });
+      return res.status(200).json({ 
+        message: 'Reseña actualizada correctamente',
+        resena_id: reviewId
+      });
     }
   );
 });
@@ -314,47 +441,121 @@ app.put('/api/resenias/:id', (req, res) => {
 app.delete('/api/resenias/:id', (req, res) => {
   const reviewId = req.params.id;
 
+  console.log('[DELETE] Iniciando eliminación de reseña ID:', reviewId);
+
+  if (isNaN(reviewId)) {
+    console.error('ID de reseña inválido:', reviewId);
+    return res.status(400).json({ error: 'ID de reseña inválido' });
+  }
+
   db.query(
-    'DELETE FROM Reseñas WHERE id = ?',
+    'CALL sp_EliminarResena(?, @resultado, @mensaje)',
     [reviewId],
-    (err, result) => {
+    (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al eliminar la reseña' });
+        console.error('Error en la consulta:', {
+          code: err.code,
+          errno: err.errno,
+          sqlMessage: err.sqlMessage,
+          sqlState: err.sqlState
+        });
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
       }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Reseña no encontrada' });
-      }
-      return res.status(200).json({ message: 'Reseña eliminada correctamente' });
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
+          if (err) {
+            console.error('Error al obtener resultados:', err);
+            return res.status(500).json({ error: 'Error al verificar eliminación' });
+          }
+
+          const { resultado, mensaje } = output[0];
+          console.log('Resultado del SP:', { resultado, mensaje });
+          
+          if (resultado === 1) {
+            return res.status(200).json({ 
+              message: mensaje,
+              resena_id: parseInt(reviewId)
+            });
+          } else {
+            const statusCode = mensaje.includes('no encontrada') ? 404 : 500;
+            return res.status(statusCode).json({ 
+              error: mensaje,
+              resena_id: reviewId
+            });
+          }
+        }
+      );
     }
   );
 });
 
 app.get('/api/resenias/usuario/:usuarioId', (req, res) => {
   const usuarioId = req.params.usuarioId;
-  
-  const query = `
-    SELECT 
-      r.id, 
-      r.comentario, 
-      r.puntuacion, 
-      r.fecha_creacion, 
-      p.id AS pelicula_id,
-      p.titulo AS pelicula_titulo, 
-      p.imagen AS pelicula_imagen
-    FROM Reseñas r
-    JOIN Peliculas p ON r.pelicula_id = p.id
-    WHERE r.usuario_id = ?
-    ORDER BY r.fecha_creacion DESC
-  `;
 
-  db.query(query, [usuarioId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener las reseñas del usuario' });
+  if (isNaN(usuarioId)) {
+    return res.status(400).json({ 
+      error: 'ID de usuario inválido',
+      details: `Se recibió: ${usuarioId}`
+    });
+  }
+
+  console.log(`[GET] Obteniendo reseñas para usuario ID: ${usuarioId}`);
+
+  db.query(
+    'CALL sp_ObtenerResenasPorUsuario(?, @resultado, @mensaje)',
+    [usuarioId],
+    (err, results) => {
+      if (err) {
+        console.error('Error al obtener reseñas:', {
+          code: err.code,
+          errno: err.errno,
+          sqlMessage: err.sqlMessage
+        });
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
+      }
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
+          if (err) {
+            console.error('Error al verificar resultados:', err);
+            return res.status(500).json({ 
+              error: 'Error al procesar resultados',
+              details: err.message
+            });
+          }
+
+          const { resultado, mensaje } = output[0];
+          
+          if (resultado === 1) {
+            const reseñas = results[0];
+            console.log(`[GET] Encontradas ${reseñas.length} reseñas para usuario ${usuarioId}`);
+            
+            return res.status(200).json({
+              success: true,
+              message: mensaje,
+              data: reseñas,
+              count: reseñas.length
+            });
+          } else {
+            console.warn(`[GET] ${mensaje} - Usuario ID: ${usuarioId}`);
+            return res.status(404).json({ 
+              error: mensaje,
+              usuario_id: usuarioId
+            });
+          }
+        }
+      );
     }
-    return res.status(200).json(results);
-  });
+  );
 });
 
 // ---------------------------------------------------------
@@ -363,30 +564,52 @@ app.get('/api/resenias/usuario/:usuarioId', (req, res) => {
 // Ruta para manejar favoritos
 app.post('/api/favoritos', (req, res) => {
   const { usuario_id, pelicula_id } = req.body;
-  const fecha_agregado = new Date();
+
+  if (!usuario_id || !pelicula_id) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
+  console.log(`[POST] Agregando favorito - Usuario: ${usuario_id}, Película: ${pelicula_id}`);
 
   db.query(
-    'SELECT * FROM Favoritos WHERE usuario_id = ? AND pelicula_id = ?',
+    'CALL sp_AgregarFavorito(?, ?, @resultado, @mensaje)',
     [usuario_id, pelicula_id],
     (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al verificar favoritos' });
-      }
-      
-      if (results.length > 0) {
-        return res.status(400).json({ error: 'Ya existe en favoritos' });
+        console.error('Error al agregar favorito:', {
+          code: err.code,
+          errno: err.errno,
+          sqlMessage: err.sqlMessage
+        });
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
       }
 
       db.query(
-        'INSERT INTO Favoritos (usuario_id, pelicula_id, fecha_agregado) VALUES (?, ?, ?)',
-        [usuario_id, pelicula_id, fecha_agregado],
-        (err, result) => {
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
           if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Error al agregar a favoritos' });
+            console.error('Error al verificar resultados:', err);
+            return res.status(500).json({ 
+              error: 'Error al procesar resultados',
+              details: err.message
+            });
           }
-          return res.status(200).json({ message: 'Agregado a favoritos' });
+
+          const { resultado, mensaje } = output[0];
+          
+          if (resultado === 1) {
+            return res.status(200).json({
+              success: true,
+              message: mensaje
+            });
+          } else {
+            return res.status(400).json({ 
+              error: mensaje
+            });
+          }
         }
       );
     }
@@ -396,15 +619,55 @@ app.post('/api/favoritos', (req, res) => {
 app.post('/api/favoritos/check', (req, res) => {
   const { usuario_id, pelicula_id } = req.body;
 
+  if (!usuario_id || !pelicula_id) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
+  console.log(`[POST] Verificando favorito - Usuario: ${usuario_id}, Película: ${pelicula_id}`);
+
   db.query(
-    'SELECT * FROM Favoritos WHERE usuario_id = ? AND pelicula_id = ?',
+    'CALL sp_VerificarFavorito(?, ?, @resultado, @mensaje, @es_favorito)',
     [usuario_id, pelicula_id],
     (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al verificar favorito' });
+        console.error('Error al verificar favorito:', {
+          code: err.code,
+          errno: err.errno,
+          sqlMessage: err.sqlMessage
+        });
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
       }
-      return res.status(200).json({ esFavorito: results.length > 0 });
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje, @es_favorito AS es_favorito',
+        (err, output) => {
+          if (err) {
+            console.error('Error al verificar resultados:', err);
+            return res.status(500).json({ 
+              error: 'Error al procesar resultados',
+              details: err.message
+            });
+          }
+
+          const { resultado, mensaje, es_favorito } = output[0];
+          
+          if (resultado === 1) {
+            return res.status(200).json({
+              success: true,
+              message: mensaje,
+              esFavorito: es_favorito
+            });
+          } else {
+            return res.status(400).json({ 
+              error: mensaje,
+              esFavorito: false
+            });
+          }
+        }
+      );
     }
   );
 });
@@ -412,42 +675,108 @@ app.post('/api/favoritos/check', (req, res) => {
 app.delete('/api/favoritos', (req, res) => {
   const { usuario_id, pelicula_id } = req.body;
 
+  if (!usuario_id || !pelicula_id) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
+  console.log(`[DELETE] Eliminando favorito - Usuario: ${usuario_id}, Película: ${pelicula_id}`);
+
   db.query(
-    'DELETE FROM Favoritos WHERE usuario_id = ? AND pelicula_id = ?',
+    'CALL sp_EliminarFavorito(?, ?, @resultado, @mensaje, @filas_afectadas)',
     [usuario_id, pelicula_id],
-    (err, result) => {
+    (err, results) => {
       if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error al eliminar de favoritos' });
+        console.error('Error al eliminar favorito:', {
+          code: err.code,
+          errno: err.errno,
+          sqlMessage: err.sqlMessage
+        });
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
       }
-      return res.status(200).json({ message: 'Eliminado de favoritos' });
+
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje, @filas_afectadas AS filas_afectadas',
+        (err, output) => {
+          if (err) {
+            console.error('Error al verificar resultados:', err);
+            return res.status(500).json({ 
+              error: 'Error al procesar resultados',
+              details: err.message
+            });
+          }
+
+          const { resultado, mensaje, filas_afectadas } = output[0];
+          
+          if (resultado === 1) {
+            return res.status(200).json({
+              success: true,
+              message: mensaje,
+              filasAfectadas: filas_afectadas
+            });
+          } else {
+            return res.status(400).json({ 
+              error: mensaje,
+              filasAfectadas: filas_afectadas
+            });
+          }
+        }
+      );
     }
   );
 });
 
 app.get('/api/favoritos/usuario/:usuarioId', (req, res) => {
   const usuarioId = req.params.usuarioId;
-  
-  const query = `
-    SELECT 
-      f.id,
-      f.fecha_agregado,
-      p.titulo AS pelicula_titulo,
-      p.imagen AS pelicula_imagen,
-      p.id AS pelicula_id
-    FROM Favoritos f
-    JOIN Peliculas p ON f.pelicula_id = p.id
-    WHERE f.usuario_id = ?
-    ORDER BY f.fecha_agregado DESC
-  `;
 
-  db.query(query, [usuarioId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error al obtener los favoritos' });
+  // Llamar al stored procedure
+  db.query(
+    'CALL sp_ObtenerFavoritosPorUsuario(?, @resultado, @mensaje)',
+    [usuarioId],
+    (err, results) => {
+      if (err) {
+        console.error('Error al obtener favoritos:', err);
+        return res.status(500).json({ 
+          error: 'Error en la base de datos',
+          details: err.sqlMessage
+        });
+      }
+
+      // Obtener resultados del stored procedure
+      db.query(
+        'SELECT @resultado AS resultado, @mensaje AS mensaje',
+        (err, output) => {
+          if (err) {
+            console.error('Error al verificar resultados:', err);
+            return res.status(500).json({ 
+              error: 'Error al procesar resultados',
+              details: err.message
+            });
+          }
+
+          const { resultado, mensaje } = output[0];
+          
+          if (resultado === 1) {
+            const favoritos = results[0] || [];
+            return res.status(200).json({
+              success: true,
+              message: mensaje,
+              data: favoritos,
+              count: favoritos.length
+            });
+          } else {
+            return res.status(404).json({ 
+              error: mensaje,
+              data: [],
+              count: 0
+            });
+          }
+        }
+      );
     }
-    return res.status(200).json(results);
-  });
+  );
 });
 // ---------------------------------------------------------
 // Arrancamos el servidor

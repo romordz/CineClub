@@ -134,22 +134,13 @@ const MovieDetails = () => {
     e.preventDefault();
     setSubmitError('');
     
-    if (!selectedRating) {
-      setSubmitError('Debes seleccionar una puntuación');
-      return;
-    }
-
-    if (!newReview.trim()) {
-      setSubmitError('Debes escribir una reseña');
-      return;
-    }
+    if (!selectedRating) return setSubmitError('Debes seleccionar una puntuación');
+    if (!newReview.trim()) return setSubmitError('Debes escribir una reseña');
 
     try {
       const response = await fetch('http://localhost:3000/api/resenias', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usuario_id: user.id,
           pelicula_id: id,
@@ -157,30 +148,36 @@ const MovieDetails = () => {
           puntuacion: selectedRating
         }),
       });
-      if (!response.ok) throw new Error('Error al enviar reseña');
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar reseña');
+      }
 
-      const newReviewData = await response.json();
-      setReviews([...reviews, {
+      setReviews(prev => [{
+        id: data.resena_id,
         author: user.nombre,
         text: newReview,
         rating: selectedRating,
-        fecha: newReviewData.fecha_creacion
-      }]);
+        fecha: data.fecha_creacion,
+        usuarioId: user.id
+      }, ...prev]);
 
-      const newTotal = totalReviews + 1;
-      const newAverage = ((averageRating * totalReviews) + selectedRating) / newTotal;
-      
-      setAverageRating(newAverage.toFixed(1));
-      setTotalReviews(newTotal);
+      setAverageRating(prev => {
+        const newTotal = totalReviews + 1;
+        return (((parseFloat(prev) * totalReviews) + selectedRating) / newTotal).toFixed(1);
+      });
+      setTotalReviews(prev => prev + 1);
       
       setNewReview('');
       setSelectedRating(0);
       
     } catch (error) {
-      console.error(error);
-      setSubmitError('Error al enviar la reseña. Intenta nuevamente.');
+      console.error('Error submitting review:', error);
+      setSubmitError(error.message);
     }
-  };
+};
 
   const renderStars = (rating) => {
     const fullStars = Math.floor(rating);
@@ -222,33 +219,70 @@ const MovieDetails = () => {
         }),
       });
   
-      if (!response.ok) throw new Error('Error al modificar la reseña');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al modificar la reseña');
+      }
   
+      const data = await response.json();
+      
       const updatedReviews = reviews.map(r => 
-        r.id === reviewId ? { ...r, text: editText, rating: editRating } : r
+        r.id === reviewId ? { 
+          ...r, 
+          text: editText, 
+          rating: editRating,
+        } : r
       );
+      
       setReviews(updatedReviews);
       setEditingReview(null);
+      setSubmitError('');
     } catch (error) {
-      console.error(error);
-      setSubmitError('Error al modificar la reseña');
+      console.error('Error detallado:', error);
+      setSubmitError(error.message);
     }
   };
   
   const handleDeleteReview = async (reviewId) => {
     try {
-      console.log('Eliminando reseña con ID:', reviewId);
-      const response = await fetch(`http://localhost:3000/api/resenias/${reviewId}`, {
-        method: 'DELETE'
-      });
+      console.log('[Frontend] Iniciando eliminación de reseña ID:', reviewId);
       
-      if (!response.ok) throw new Error('Error al eliminar la reseña');
+      const response = await fetch(`http://localhost:3000/api/resenias/${reviewId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          // Si usas autenticación:
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
   
-      setReviews(reviews.filter(r => r.id !== reviewId));
-      setTotalReviews(totalReviews - 1);
+      console.log('[Frontend] Respuesta del servidor:', {
+        status: response.status,
+        statusText: response.statusText
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[Frontend] Error en la respuesta:', errorData);
+        throw new Error(errorData.error || 'Error al eliminar la reseña');
+      }
+  
+      const data = await response.json();
+      console.log('[Frontend] Reseña eliminada con éxito:', data);
+  
+      // Actualizar estado
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+      setTotalReviews(prev => prev - 1);
+      setSubmitError('');
+      
+      console.log('[Frontend] Estado actualizado correctamente');
     } catch (error) {
-      console.error(error);
-      setSubmitError('Error al eliminar la reseña');
+      console.error('[Frontend] Error completo:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      setSubmitError(`Error: ${error.message}`);
     }
   };
 

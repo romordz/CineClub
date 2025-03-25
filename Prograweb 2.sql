@@ -73,11 +73,16 @@ CREATE TABLE Reseñas (
     comentario TEXT,
     puntuacion INT CHECK (puntuacion >= 1 AND puntuacion <= 5),
     fecha_creacion DATE NOT NULL,
+    fecha_actualizacion TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (usuario_id) REFERENCES Usuarios(id),
     FOREIGN KEY (pelicula_id) REFERENCES Peliculas(id)
 );
 
 ALTER TABLE Reseñas MODIFY COLUMN fecha_creacion DATE;
+ALTER TABLE Reseñas 
+ADD COLUMN fecha_actualizacion TIMESTAMP NULL 
+DEFAULT NULL 
+ON UPDATE CURRENT_TIMESTAMP;
 
 select * from Favoritos;
 CREATE TABLE Favoritos (
@@ -87,4 +92,20 @@ CREATE TABLE Favoritos (
     fecha_agregado DATETIME NOT NULL,
     FOREIGN KEY (usuario_id) REFERENCES Usuarios(id),
     FOREIGN KEY (pelicula_id) REFERENCES Peliculas(id)
+);
+
+-- Stored Procedures
+DELIMITER //
+
+CREATE TABLE IF NOT EXISTS error_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    procedimiento VARCHAR(100),
+    mensaje TEXT,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS debug_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    mensaje TEXT,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP
 );
