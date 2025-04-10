@@ -4,12 +4,25 @@ header {
   left: 0;
   width: 100%;
   height: 80px;
-  background: rgb(8, 25, 65);
+  background: linear-gradient(135deg, rgb(8, 25, 65) 0%, rgb(4, 15, 40) 100%);
   padding: 1rem 2rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
-  z-index: 1;
+  z-index: 1000;
+  transform: translateY(-100%);
+  animation: slideDown 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes slideDown {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .logo-container {
@@ -18,16 +31,39 @@ header {
   gap: 1rem;
   position: absolute;
   left: 2rem;
+  transition: all 0.4s ease;
+  transform-origin: left center;
+}
+
+.logo-container:hover {
+  transform: scale(1.05) rotate(-2deg);
 }
 
 .logo-container img {
   width: 50px;
   height: 50px;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+  transition: all 0.5s ease;
+}
+
+.logo-container:hover img {
+  transform: rotate(360deg);
+  filter: drop-shadow(0 0 10px #4a9fff);
 }
 
 .logo-container h1 {
   color: white;
   font-size: 1.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(to right, #fff, #a0d0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: all 0.3s ease;
+}
+
+.logo-container:hover h1 {
+  text-shadow: 0 0 10px #4a9fff, 0 0 20px #4a9fff;
 }
 
 .search-bar {
@@ -37,9 +73,19 @@ header {
   align-items: center;
   justify-content: center;
   margin: 0 auto;
-  background: #f1f1f1;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 30px;
   padding: 0.5rem 1rem;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.4s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.search-bar:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
 }
 
 .search-bar input {
@@ -49,16 +95,37 @@ header {
   flex: 1;
   font-size: 0.9rem;
   padding: 0.5rem;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.search-bar input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.search-bar input:focus {
+  transform: translateX(5px);
 }
 
 .search-bar button {
-  background: rgb(8, 25, 65);
+  background: linear-gradient(45deg, #4a9fff, #0066ff);
   border: none;
   color: white;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1.5rem;
   border-radius: 20px;
   cursor: pointer;
   font-size: 0.9rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(74, 159, 255, 0.3);
+}
+
+.search-bar button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(74, 159, 255, 0.5);
+}
+
+.search-bar button:active {
+  transform: translateY(0);
 }
 
 .user-info {
@@ -67,6 +134,15 @@ header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  padding: 0.3rem 0.5rem;
+  border-radius: 30px;
+}
+
+.user-info:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
 }
 
 .user-info img {
@@ -74,9 +150,23 @@ header {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.user-info:hover img {
+  transform: scale(1.1) rotate(5deg);
+  border-color: #4a9fff;
+  box-shadow: 0 0 15px rgba(74, 159, 255, 0.5);
 }
 
 .user-info span {
   font-size: 0.9rem;
   color: #e8e8e8;
+  transition: all 0.3s ease;
+}
+
+.user-info:hover span {
+  color: #4a9fff;
+  text-shadow: 0 0 5px rgba(74, 159, 255, 0.5);
 }

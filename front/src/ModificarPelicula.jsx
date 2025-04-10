@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
-import "./AgregarPelicula.css";
+import "./ModificarPelicula.css";
 
-const AgregarPelicula = () => {
+const ModificarPelicula = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     titulo: "",
     sinopsis: "",
     director: "",
     genero: "",
     anio: "",
+    imagenActual: "",
   });
   const [imagenFile, setImagenFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -16,6 +20,7 @@ const AgregarPelicula = () => {
   const [messageType, setMessageType] = useState("");
   const [user, setUser] = useState(null);
   const [generos, setGeneros] = useState([]);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -79,29 +84,50 @@ const AgregarPelicula = () => {
       setUser(JSON.parse(storedUser));
     }
 
-    const fetchGeneros = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/generos");
-        const data = await response.json();
-        if (response.ok) {
-          setGeneros(data);
+        const generosResponse = await fetch(
+          "http://localhost:3000/api/generos"
+        );
+        const generosData = await generosResponse.json();
+        if (generosResponse.ok) {
+          setGeneros(generosData);
+        }
+        const peliculaResponse = await fetch(
+          `http://localhost:3000/api/peliculas/${id}`
+        );
+        const peliculaData = await peliculaResponse.json();
+
+        if (peliculaResponse.ok) {
+          setFormData({
+            titulo: peliculaData.titulo,
+            sinopsis: peliculaData.descripcion,
+            director: peliculaData.director,
+            genero: peliculaData.genero_id,
+            anio: peliculaData.fecha_lanzamiento.split("T")[0],
+            imagenActual: peliculaData.imagen,
+          });
         } else {
-          console.error("Error al obtener los géneros");
+          setMessage("Error al cargar la película");
+          setMessageType("error");
         }
       } catch (error) {
         console.error("Error de conexión con el servidor", error);
+        setMessage("Error de conexión con el servidor");
+        setMessageType("error");
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchGeneros();
-  }, []);
+    fetchData();
+  }, [id]);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (files && files[0]) {
       setImagenFile(files[0]);
 
-      // Crear vista previa de la imagen
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
@@ -119,13 +145,14 @@ const AgregarPelicula = () => {
     setImagenFile(null);
     setImagePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Limpiar el input file
+      fileInputRef.current.value = "";
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formDataToSend = new FormData();
+    formDataToSend.append("id", id);
     formDataToSend.append("titulo", formData.titulo);
     formDataToSend.append("sinopsis", formData.sinopsis);
     formDataToSend.append("director", formData.director);
@@ -137,7 +164,7 @@ const AgregarPelicula = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/agregarPelicula",
+        "http://localhost:3000/api/modificarPelicula",
         {
           method: "POST",
           body: formDataToSend,
@@ -145,18 +172,13 @@ const AgregarPelicula = () => {
       );
       const data = await response.json();
       if (response.ok) {
-        setMessage("Película agregada correctamente");
+        setMessage("Película modificada correctamente");
         setMessageType("success");
-        setFormData({
-          titulo: "",
-          sinopsis: "",
-          director: "",
-          genero: "",
-          anio: "",
-        });
-        setImagenFile(null);
+        setTimeout(() => {
+          navigate(`/movie/${id}`);
+        }, 2000);
       } else {
-        setMessage(data.error || "Error al agregar la película");
+        setMessage(data.error || "Error al modificar la película");
         setMessageType("error");
       }
     } catch (error) {
@@ -166,12 +188,25 @@ const AgregarPelicula = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div>
+        <Header user={user} />
+        <div className="main-agregar-pelicula">
+          <section className="admin-section">
+            <h2>Cargando...</h2>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Header user={user} />
       <div className="main-agregar-pelicula">
         <section className="admin-section">
-          <h2>Agregar Película</h2>
+          <h2>Modificar Película</h2>
           <form onSubmit={handleSubmit}>
             <div>
               <label htmlFor="titulo">Título:</label>
@@ -197,43 +232,70 @@ const AgregarPelicula = () => {
               ></textarea>
             </div>
             <div>
-  <div className="file-input-container">
-    <label htmlFor="imagen" className="file-input-label">
-      {imagenFile ? imagenFile.name : "Seleccionar imagen"}
-    </label>
-    <input
-      type="file"
-      id="imagen"
-      name="imagen"
-      accept="image/*"
-      onChange={handleChange}
-      required
-      ref={fileInputRef}
-      className="file-input"
-    />
-  </div>
+              <label htmlFor="imagen">Imagen:</label>
+              <div className="file-input-container">
+                <label htmlFor="imagen" className="file-input-label">
+                  {imagenFile ? imagenFile.name : "Seleccionar nueva imagen"}
+                </label>
+                <input
+                  type="file"
+                  id="imagen"
+                  name="imagen"
+                  accept="image/*"
+                  onChange={handleChange}
+                  ref={fileInputRef}
+                  className="file-input"
+                />
+              </div>
 
-  {imagePreview && (
-    <div className="image-preview-wrapper">
-      <div className="image-preview-container">
-        <img
-          src={imagePreview}
-          alt="Vista previa de la imagen"
-          className="preview-image"
-        />
-      </div>
-      <button
-        type="button"
-        className="remove-image-btn"
-        onClick={handleRemoveImage}
-      >
-        ×
-      </button>
-    </div>
-  )}
-</div>
+              <div className="previews-container">
+                {/* Imagen actual */}
+                {formData.imagenActual ? (
+                  <div className="current-image">
+                    <div className="image-wrapper">
+                      <img
+                        src={`data:image/jpeg;base64,${formData.imagenActual}`}
+                        alt="Imagen actual de la película"
+                      />
+                    </div>
+                    <p className="image-caption">Imagen actual</p>
+                  </div>
+                ) : (
+                  <div className="image-placeholder">
+                    <div className="placeholder-content">
+                      <span>+</span>
+                      <p>No hay imagen actual</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nueva imagen */}
+                {imagePreview ? (
+                  <div className="new-image">
+                    <div className="image-wrapper">
+                      <img src={imagePreview} alt="Nueva imagen seleccionada" />
+                    </div>
+                    <button
+                      type="button"
+                      className="remove-image-btn"
+                      onClick={handleRemoveImage}
+                    >
+                      ×
+                    </button>
+                    <p className="image-caption">Nueva imagen</p>
+                  </div>
+                ) : (
+                  <div className="image-placeholder">
+                    <div className="placeholder-content">
+                      <span>+</span>
+                      <p>No hay nueva imagen</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             <div>
-              <label htmlFor="director">Director(es):</label>
+              <label htmlFor="director">Director:</label>
               <input
                 type="text"
                 id="director"
@@ -241,6 +303,7 @@ const AgregarPelicula = () => {
                 value={formData.director}
                 onChange={handleChange}
                 placeholder="Ingrese el nombre del director"
+                required
               />
             </div>
             <div>
@@ -268,11 +331,11 @@ const AgregarPelicula = () => {
                 name="anio"
                 value={formData.anio}
                 onChange={handleChange}
-                placeholder="Ingrese la fecha de estreno"
+                required
               />
             </div>
             <div>
-              <input type="submit" value="Agregar Película" />
+              <input type="submit" value="Guardar Cambios" />
             </div>
           </form>
           {message && <div className={`alert ${messageType}`}>{message}</div>}
@@ -282,4 +345,4 @@ const AgregarPelicula = () => {
   );
 };
 
-export default AgregarPelicula;
+export default ModificarPelicula;

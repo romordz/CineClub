@@ -7,6 +7,7 @@ import Main from './Main';
 import Perfil from './Perfil';
 import AgregarPelicula from './AgregarPelicula';
 import MovieDetails from './MovieDetails';
+import ModificarPelicula from './ModificarPelicula';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/agregar-pelicula" element={<AgregarPelicula />} />
         <Route path="/movie/:id" element={<MovieDetails />} />
+        <Route path="/modificar-pelicula/:id" element={<ModificarPelicula />} />
       </Routes>
     </Router>
   );
