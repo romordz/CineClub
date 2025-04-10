@@ -222,25 +222,24 @@ const MovieDetails = () => {
         throw new Error(data.error || "Error al enviar reseña");
       }
 
-      setReviews((prev) => [
-        {
-          id: data.resena_id,
-          author: user.nombre,
-          text: newReview,
-          rating: selectedRating,
-          fecha: data.fecha_creacion,
-          usuarioId: user.id,
-        },
-        ...prev,
-      ]);
+      const newReviewData = {
+        id: data.resena_id,
+        author: user.nombre,
+        text: newReview,
+        rating: selectedRating,
+        fecha: new Date().toISOString(), // Use current date for immediate display
+        usuarioId: user.id,
+      };
+
+      setReviews((prev) => [newReviewData, ...prev]);
 
       setAverageRating((prev) => {
         const newTotal = totalReviews + 1;
         return (
-          (parseFloat(prev) * totalReviews + selectedRating) /
-          newTotal
+          (parseFloat(prev) * totalReviews + selectedRating) / newTotal
         ).toFixed(1);
       });
+
       setTotalReviews((prev) => prev + 1);
 
       setNewReview("");
@@ -310,6 +309,13 @@ const MovieDetails = () => {
       );
 
       setReviews(updatedReviews);
+
+      // Recalculate average rating
+      const newAverage = (
+        updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length
+      ).toFixed(1);
+      setAverageRating(newAverage);
+
       setEditingReview(null);
       setSubmitError("");
     } catch (error) {
@@ -317,6 +323,7 @@ const MovieDetails = () => {
       setSubmitError(error.message);
     }
   };
+
   const handleDeleteMovie = async () => {
     setShowConfirm(true);
   };
@@ -385,8 +392,19 @@ const MovieDetails = () => {
       const data = await response.json();
       console.log("[Frontend] Reseña eliminada con éxito:", data);
 
-      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
-      setTotalReviews((prev) => prev - 1);
+      const updatedReviews = reviews.filter((r) => r.id !== reviewId);
+      setReviews(updatedReviews);
+
+      // Recalculate average rating and total reviews
+      const newAverage = updatedReviews.length
+        ? (
+            updatedReviews.reduce((sum, r) => sum + r.rating, 0) /
+            updatedReviews.length
+          ).toFixed(1)
+        : 0;
+      setAverageRating(newAverage);
+      setTotalReviews(updatedReviews.length);
+
       setSubmitError("");
 
       console.log("[Frontend] Estado actualizado correctamente");

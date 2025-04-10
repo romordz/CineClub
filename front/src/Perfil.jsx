@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "./components/Header";
+import MovieCard from './components/MovieCard';
 import "./Perfil.css";
 
 const Perfil = () => {
@@ -361,7 +362,6 @@ const Perfil = () => {
                   />
                 </div>
                 <div className="previews-container-Perfil">
-                  {/* Imagen actual */}
                   {formData.avatar ? (
                     <div className="current-image-Perfil">
                       <div className="image-wrapper-Perfil">
@@ -386,8 +386,6 @@ const Perfil = () => {
                       </div>
                     </div>
                   )}
-
-                  {/* Nueva imagen */}
                   {avatarFile ? (
                     <div className="new-image-Perfil">
                       <div className="image-wrapper-Perfil">
@@ -495,25 +493,13 @@ const Perfil = () => {
               <div className="review-grid">
                 {userReviews.length > 0 ? (
                   userReviews.map((review, index) => (
-                    <div
-                      key={index}
-                      className="review-card"
-                      onClick={() => handleMovieClick(review.pelicula_id)}
-                    >
-                      <div className="movie-card">
-                        <img
-                          src={`data:image/jpeg;base64,${review.pelicula_imagen}`}
-                          alt={review.pelicula_titulo}
-                        />
-                        <h3>{review.pelicula_titulo}</h3>
-                        <div className="rating">
-                          <span>{review.puntuacion}</span>
-                          <span className="stars">
-                            {"★".repeat(review.puntuacion)}
-                            {"☆".repeat(5 - review.puntuacion)}
-                          </span>
-                        </div>
-                      </div>
+                    <div key={index} className="review-card">
+                      <MovieCard
+                        image={`data:image/jpeg;base64,${review.pelicula_imagen}`}
+                        title={review.pelicula_titulo}
+                        rating={review.puntuacion}
+                        onClick={() => handleMovieClick(review.pelicula_id)}
+                      />
                       <div className="review-text">
                         <p>{review.comentario}</p>
                         <p className="User-review-date">
@@ -540,21 +526,19 @@ const Perfil = () => {
               <div className="favorites-grid">
                 {userFavorites.length > 0 ? (
                   userFavorites.map((favorite, index) => (
-                    <div
-                      key={index}
-                      className="favorite-card"
-                      onClick={() => handleMovieClick(favorite.pelicula_id)}
-                    >
-                      <img
-                        src={`data:image/jpeg;base64,${favorite.pelicula_imagen}`}
-                        alt={favorite.pelicula_titulo}
+                    <div key={index} className="favorite-card">
+                      <MovieCard
+                        image={`data:image/jpeg;base64,${favorite.pelicula_imagen}`}
+                        title={favorite.pelicula_titulo}
+                        rating={favorite.puntuacion || 0}
+                        onClick={() => handleMovieClick(favorite.pelicula_id)}
                       />
-                      <h3>{favorite.pelicula_titulo}</h3>
                       <p className="favorite-date">
-                        Agregado:{" "}
-                        {new Date(favorite.fecha_agregado).toLocaleDateString(
-                          "es-ES"
-                        )}
+                        Fecha Agregada: {new Date(favorite.fecha_agregado).toLocaleDateString("es-ES", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
                       </p>
                     </div>
                   ))
