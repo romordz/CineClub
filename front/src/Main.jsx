@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
+import MovieCard from './components/MovieCard';
 import './Main.css';
 
 function Main() {
@@ -140,21 +141,13 @@ function Main() {
           <section className="section">
             <div className="movie-grid">
               {peliculas.map((pelicula) => (
-                <div 
-                  className="movie-card" 
+                <MovieCard
                   key={pelicula.id}
+                  image={`data:image/jpeg;base64,${pelicula.imagen}`}
+                  title={pelicula.titulo}
+                  rating={pelicula.promedio}
                   onClick={() => handleMovieClick(pelicula.id)}
-                >
-                  <img
-                    src={`data:image/jpeg;base64,${pelicula.imagen}`}
-                    alt="Movie Poster"
-                  />
-                  <h3>{pelicula.titulo}</h3>
-                  <div className="rating">
-                    {renderStars(pelicula.promedio)}
-                    <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
-                  </div>
-                </div>
+                />
               ))}
               {peliculas.length === 0 && (
                 <p className="no-results">No se encontraron películas</p>
@@ -167,21 +160,13 @@ function Main() {
               <h2>Películas Recientes</h2>
               <div className="movie-grid">
                 {peliculas.slice(0, 5).map((pelicula) => (
-                  <div 
-                    className="movie-card" 
+                  <MovieCard
                     key={pelicula.id}
+                    image={`data:image/jpeg;base64,${pelicula.imagen}`}
+                    title={pelicula.titulo}
+                    rating={pelicula.promedio}
                     onClick={() => handleMovieClick(pelicula.id)}
-                  >
-                    <img
-                      src={`data:image/jpeg;base64,${pelicula.imagen}`}
-                      alt="Movie Poster"
-                    />
-                    <h3>{pelicula.titulo}</h3>
-                    <div className="rating">
-                      {renderStars(pelicula.promedio)}
-                      <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             </section>
@@ -191,21 +176,13 @@ function Main() {
                 <h2>{genero}</h2>
                 <div className="movie-grid">
                   {peliculasPorGenero[genero].map((pelicula) => (
-                    <div 
-                      className="movie-card" 
+                    <MovieCard
                       key={pelicula.id}
+                      image={`data:image/jpeg;base64,${pelicula.imagen}`}
+                      title={pelicula.titulo}
+                      rating={pelicula.promedio}
                       onClick={() => handleMovieClick(pelicula.id)}
-                    >
-                      <img
-                        src={`data:image/jpeg;base64,${pelicula.imagen}`}
-                        alt="Movie Poster"
-                      />
-                      <h3>{pelicula.titulo}</h3>
-                      <div className="rating">
-                        {renderStars(pelicula.promedio)}
-                        <span className="number">{Number(pelicula.promedio).toFixed(1)}</span>
-                      </div>
-                    </div>
+                    />
                   ))}
                 </div>
               </section>
