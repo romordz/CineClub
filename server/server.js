@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -25,11 +27,13 @@ if (!require("fs").existsSync(uploadsDir)) {
   require("fs").mkdirSync(uploadsDir);
 }
 
+// Las credenciales se leen de .env (ver .env.example); no se hardcodean aqui
+// para que el repositorio no exponga usuario ni contraseña de MySQL.
 const db = mysql.createConnection({
-  host: "localhost", // Cambia según tu servidor
-  user: "root", // Tu usuario de MySQL
-  password: "***REMOVED***", // Tu contraseña de MySQL
-  database: "PrograWeb_2", // Nombre de la base de datos
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "PrograWeb_2",
   decimalNumbers: true,
 });
 

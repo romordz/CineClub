@@ -56,9 +56,9 @@ npm start        # http://localhost:3000
 npm test         # 130 tests, sin MySQL
 ```
 
-La configuración de conexión está en las primeras líneas de `server/server.js` y
-está **hardcodeada** (`localhost`, usuario `root`). Ver
-[Huecos conocidos](#huecos-conocidos).
+La conexión a MySQL se configura con variables de entorno: copia
+`server/.env.example` a `server/.env` y ajusta los valores. El `.env` real no
+se sube al repositorio (está en `.gitignore`).
 
 ### Frontend
 
@@ -192,10 +192,11 @@ vista. No son defects pendientes de hacer: son el estado real, medido.
    produce un error de base de datos (500) en lugar de un 400. (`health` no
    necesita validación de entrada; los otros 7 sí.)
 
-4. **Credenciales en el repositorio.** `server/server.js` tiene `host`, `user` y
-   `password` de MySQL en el archivo, y `Prograweb 2.sql` siembra una cuenta
-   `admin@example.com` con contraseña en claro. Ninguna de las dos es de
-   producción, pero el repositorio es público.
+4. **Credenciales sembradas en el SQL.** La conexión del server ya no vive en el
+   código: se lee de `server/.env` (`.env.example` documenta las variables, y el
+   `.env` real está en `.gitignore`). Queda pendiente el dato sembrado:
+   `Prograweb 2.sql` crea una cuenta `admin@example.com` con contraseña en
+   claro. No es de producción, pero el repositorio es público.
 
 5. **Contraseñas sin cifrar.** La columna es `Usuarios.contraseña VARCHAR(255)`
    y `sp_LoginUsuario` la compara directamente. `bcrypt` figura en
