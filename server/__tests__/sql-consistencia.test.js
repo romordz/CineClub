@@ -26,6 +26,7 @@ const RAIZ = path.join(__dirname, "..", "..");
 const BRUTO_ESQUEMA = fs.readFileSync(path.join(RAIZ, "Prograweb 2.sql"), "utf8");
 const BRUTO_SP = fs.readFileSync(path.join(RAIZ, "Stored Procedures.sql"), "utf8");
 const BRUTO_SERVER = fs.readFileSync(path.join(RAIZ, "server", "server.js"), "utf8");
+const BRUTO_EJEMPLO = fs.readFileSync(path.join(RAIZ, "server", ".env.example"), "utf8");
 
 /**
  * Quita los comentarios. Sin esto el analizador lee su propia prosa: un
@@ -208,5 +209,14 @@ describe("Los .sql contra el codigo que los invoca", () => {
       .filter((c) => c.parametros !== firmas.get(c.nombre))
       .map((c) => `${c.nombre}: el CALL pasa ${c.parametros}, el procedimiento declara ${firmas.get(c.nombre)}`);
     expect(descuadres).toEqual([]);
+  });
+
+  it(".env.example documenta cada variable DB_ que server.js lee", () => {
+    // DB_PORT faltaba en los dos lados: mover MySQL a otro puerto exigia tocar
+    // codigo en vez de configuracion. Este cruce impide que una variable nueva
+    // quede sin documentar, o que el ejemplo documente una que ya nadie lee.
+    const leidas = [...new Set([...BRUTO_SERVER.matchAll(/process\.env\.(DB_\w+)/g)].map((m) => m[1]))].sort();
+    const documentadas = [...new Set([...BRUTO_EJEMPLO.matchAll(/^(DB_\w+)=/gm)].map((m) => m[1]))].sort();
+    expect(documentadas).toEqual(leidas);
   });
 });

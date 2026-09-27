@@ -85,7 +85,7 @@ corto la primera vez.
 cd server
 npm install
 npm start        # http://localhost:3000
-npm test         # 142 tests, sin MySQL
+npm test         # 143 tests, sin MySQL
 ```
 
 La conexión a MySQL se configura con variables de entorno: copia
@@ -189,7 +189,7 @@ El mapeo está dentro de cada procedimiento.
 
 ## Tests
 
-142 tests, sin MySQL. Ver [`server/TESTS.md`](server/TESTS.md).
+143 tests, sin MySQL. Ver [`server/TESTS.md`](server/TESTS.md).
 
 ```bash
 cd server && npm test

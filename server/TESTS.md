@@ -1,6 +1,6 @@
 # Tests de integración
 
-142 tests sobre los 20 endpoints de la API, sin necesidad de MySQL: la conexión
+143 tests sobre los 20 endpoints de la API, sin necesidad de MySQL: la conexión
 se sustituye por un doble que responde el patrón de dos pasos que usan los
 handlers.
 
@@ -43,6 +43,7 @@ Lo que fija, y por qué:
 | `USE` y `SET NAMES utf8mb4` en los `.sql` | Sin el primero, error 1046; sin el segundo, los acentos de `contraseña` y `reseñas` no se reconocen |
 | Todo `CALL` de `server.js` existe en el `.sql` | `sp_ModificarPelicula` y `sp_EliminarPelicula` no estaban definidos: error 1305 y dos endpoints en 500 |
 | Los parámetros del `CALL` son los que declara la firma | La firma no es libre; si uno de los dos lados cambia y el otro no, falla al ejecutar |
+| `.env.example` documenta cada variable `DB_*` que `server.js` lee | `DB_PORT` no existía en ningún lado: mover MySQL a otro puerto exigía tocar código, no configuración |
 
 Para comprobar que el guardián sirve, se rompieron las cosas a mano y se
 volvieron a arreglar:
