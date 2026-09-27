@@ -5,7 +5,19 @@ const multer = require("multer");
 const path = require("path");
 const app = express();
 
-app.use(cors());
+const PORT = process.env.PORT || 3000;
+
+const allowedOrigins = [
+  "https://7gcg7kw8-3000.usw3.devtunnels.ms", // 3000 -- backend
+  "https://7gcg7kw8-3001.usw3.devtunnels.ms", // 3001 -- frontend
+  "http://localhost:3001", // frontend local
+  "http://localhost:3000"  // backend local
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
 app.use(express.json());
 
 const uploadsDir = path.join(__dirname, "uploads");
@@ -22,12 +34,44 @@ const db = mysql.createConnection({
 });
 
 db.connect((err) => {
-  if (err) throw err;
-  console.log("Conectado a la base de datos MySQL");
+  // Al importar este archivo (p. ej. desde los tests) no debe abortar el proceso:
+  // la conexion se resuelve en el arranque real, no al cargar el modulo.
+  if (require.main === module) {
+    if (err) throw err;
+    console.log("Conectado a la base de datos MySQL");
+  }
 });
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+// ---------------------------------------------------------
+// HEALTH CHECK
+// Es la unica ruta que no usa un procedimiento almacenado, y a
+// proposito: no hay logica de negocio que encapsular, solo
+// comprobar que la conexion responde. Vive antes que el resto
+// porque es la que consulta un despliegue para decidir si el
+// proceso recibe trafico.
+// ---------------------------------------------------------
+app.get("/api/health", (req, res) => {
+  db.query("SELECT 1 AS ok", (err, results) => {
+    if (err) {
+      console.error(
+        "Health check fallo:",
+        err.sqlMessage || err.message
+      );
+      return res.status(503).json({
+        status: "error",
+        database: "unreachable",
+      });
+    }
+
+    return res.status(200).json({
+      status: "ok",
+      database: "up",
+    });
+  });
+});
 
 // ---------------------------------------------------------
 // RUTA DE REGISTRO (SIN ENCRIPTACIÓN)
@@ -530,11 +574,17 @@ app.post("/api/resenias", (req, res) => {
               resena_id: resena_id,
             });
           } else {
-            const statusCode = mensaje.includes("no encontrad")
+            // Los mensajes se comparan en minusculas: los procedimientos los
+            // emiten con mayuscula inicial ("Ya has reseñado esta pelicula") y
+            // una comparacion sensible a mayusculas dejaba el 409 sin alcanzar,
+            // de modo que una reseña duplicada respondia 500 en vez de 409.
+            const mensajeNormalizado = String(mensaje).toLowerCase();
+
+            const statusCode = mensajeNormalizado.includes("no encontrad")
               ? 404
-              : mensaje.includes("ya has reseñado")
+              : mensajeNormalizado.includes("ya has reseñado")
               ? 409
-              : mensaje.includes("puntuación")
+              : mensajeNormalizado.includes("puntuación")
               ? 400
               : 500;
 
@@ -932,7 +982,13 @@ app.get("/api/favoritos/usuario/:usuarioId", (req, res) => {
 });
 // ---------------------------------------------------------
 // Arrancamos el servidor
+// Solo cuando este archivo se ejecuta directamente. Si lo importa otro
+// modulo (los tests), expone `app` sin abrir el puerto.
 // ---------------------------------------------------------
-app.listen(3000, () => {
-  console.log("Servidor corriendo en http://localhost:3000");
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { app, db };

@@ -4,11 +4,14 @@ import Header from './components/Header';
 import MovieCard from './components/MovieCard';
 import './Main.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 function Main() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [peliculas, setPeliculas] = useState([]);
   const [searchParams] = useSearchParams();
+  const [fetchError, setFetchError] = useState(null);
   const searchQuery = searchParams.get('search');
 
   useEffect(() => {
@@ -75,18 +78,28 @@ function Main() {
     const fetchPeliculas = async () => {
       try {
         const url = searchQuery 
-          ? `http://localhost:3000/api/peliculas?search=${encodeURIComponent(searchQuery)}`
-          : 'http://localhost:3000/api/peliculas';
+          ? `${API_URL}/api/peliculas?search=${encodeURIComponent(searchQuery)}`
+          : `${API_URL}/api/peliculas`;
 
         const response = await fetch(url);
-        const data = await response.json();
-        
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (jsonError) {
+          setFetchError(`Respuesta no JSON. Status: ${response.status}. Texto: ${text.substring(0, 300)}`);
+          console.error('Respuesta no JSON:', { status: response.status, headers: response.headers, text });
+          return;
+        }
         if (response.ok) {
           setPeliculas(data);
+          setFetchError(null);
         } else {
-          console.error('Error al obtener las películas');
+          setFetchError(`Error del servidor: ${data?.error || response.status}`);
+          console.error('Error al obtener las películas', data);
         }
       } catch (error) {
+        setFetchError(`Error de conexión: ${error.message}`);
         console.error('Error de conexión con el servidor', error);
       }
     };
@@ -128,6 +141,11 @@ function Main() {
     <div>
       <Header user={user} />
       <section className="product-list">
+        {fetchError && (
+          <div className="error-message" style={{color: 'red', margin: '1em 0'}}>
+            <strong>Error al cargar películas:</strong> {fetchError}
+          </div>
+        )}
         {searchQuery && (
           <div className="search-results-header">
             <h2>Resultados para: "{searchQuery}"</h2>

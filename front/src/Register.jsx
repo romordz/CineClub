@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Register.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 function Register() {
   const [formData, setFormData] = useState({
     nombre: "",
@@ -162,7 +164,7 @@ function Register() {
       formDataToSend.append("fechaNacimiento", fechaNacimiento);
       formDataToSend.append("fotoPerfil", fotoPerfil);
 
-      const response = await fetch("http://localhost:3000/api/Register", {
+      const response = await fetch(`${API_URL}/api/Register`, {
         method: "POST",
         body: formDataToSend,
       });

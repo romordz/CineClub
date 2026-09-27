@@ -4,6 +4,8 @@ import Header from "./components/Header";
 import MovieCard from './components/MovieCard';
 import "./Perfil.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const Perfil = () => {
   const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -97,7 +99,7 @@ const Perfil = () => {
       const fetchUserReviews = async () => {
         try {
           const response = await fetch(
-            `http://localhost:3000/api/resenias/usuario/${userData.id}`
+            `${API_URL}/api/resenias/usuario/${userData.id}`
           );
           if (!response.ok)
             throw new Error("Error obteniendo reseñas del usuario");
@@ -129,7 +131,7 @@ const Perfil = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/favoritos/usuario/${user.id}`
+          `${API_URL}/api/favoritos/usuario/${user.id}`
         );
         if (!response.ok) throw new Error("Error obteniendo favoritos");
         const favoritesData = await response.json();
@@ -223,7 +225,7 @@ const Perfil = () => {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/updateUser", {
+      const response = await fetch(`${API_URL}/api/updateUser`, {
         method: "POST",
         body: formDataToSend,
       });
@@ -251,7 +253,7 @@ const Perfil = () => {
     setShowDeleteConfirm(false); // Cierra el diálogo de confirmación
 
     try {
-      const response = await fetch("http://localhost:3000/api/deleteUser", {
+      const response = await fetch(`${API_URL}/api/deleteUser`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: user.id }),

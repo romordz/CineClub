@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# Dependencias del front
+front/node_modules/
+front/build/
+
+# Artefactos de build
+dist/
+build/
+
+# Variables de entorno: nunca deben subirse
+.env
+.env.*
+!.env.example
+
+# Archivos subidos por los usuarios (Multer, memoryStorage en disco)
+server/uploads/
+uploads/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

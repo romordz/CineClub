@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,7 +69,7 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:3000/api/login", {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

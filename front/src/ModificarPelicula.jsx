@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
 import "./ModificarPelicula.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const ModificarPelicula = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -86,30 +88,23 @@ const ModificarPelicula = () => {
 
     const fetchData = async () => {
       try {
-        const generosResponse = await fetch(
-          "http://localhost:3000/api/generos"
-        );
+        const generosResponse = await fetch(`${API_URL}/api/generos`);
         const generosData = await generosResponse.json();
         if (generosResponse.ok) {
           setGeneros(generosData);
         }
-        const peliculaResponse = await fetch(
-          `http://localhost:3000/api/peliculas/${id}`
-        );
+        const peliculaResponse = await fetch(`${API_URL}/api/peliculas/${id}`);
         const peliculaData = await peliculaResponse.json();
 
         if (peliculaResponse.ok) {
           setFormData({
             titulo: peliculaData.titulo,
-            sinopsis: peliculaData.descripcion,
+            sinopsis: peliculaData.sinopsis,
             director: peliculaData.director,
-            genero: peliculaData.genero_id,
-            anio: peliculaData.fecha_lanzamiento.split("T")[0],
-            imagenActual: peliculaData.imagen,
+            genero: peliculaData.genero_id || "",
+            anio: peliculaData.anio || "",
+            imagenActual: peliculaData.imagen || "",
           });
-        } else {
-          setMessage("Error al cargar la película");
-          setMessageType("error");
         }
       } catch (error) {
         console.error("Error de conexión con el servidor", error);
@@ -164,7 +159,7 @@ const ModificarPelicula = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/modificarPelicula",
+        `${API_URL}/api/modificarPelicula`,
         {
           method: "POST",
           body: formDataToSend,

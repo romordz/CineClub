@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
 import "./MovieDetails.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const MovieDetails = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -98,7 +100,7 @@ const MovieDetails = () => {
         if (storedUser) setUser(JSON.parse(storedUser));
 
         const movieResponse = await fetch(
-          `http://localhost:3000/api/peliculas/${id}`
+          `${API_URL}/api/peliculas/${id}`
         );
         if (!movieResponse.ok) throw new Error("Película no encontrada");
         const movieData = await movieResponse.json();
@@ -107,7 +109,7 @@ const MovieDetails = () => {
         setTotalReviews(movieData.total_resenias);
 
         const reviewsResponse = await fetch(
-          `http://localhost:3000/api/resenias/${id}`
+          `${API_URL}/api/resenias/${id}`
         );
         if (!reviewsResponse.ok) throw new Error("Error obteniendo reseñas");
         const reviewsData = await reviewsResponse.json();
@@ -136,7 +138,7 @@ const MovieDetails = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/favoritos/check`,
+          `${API_URL}/api/favoritos/check`,
           {
             method: "POST",
             headers: {
@@ -175,7 +177,7 @@ const MovieDetails = () => {
     setIsLoadingFavorite(true);
 
     try {
-      const response = await fetch(`http://localhost:3000/api/favoritos`, {
+      const response = await fetch(`${API_URL}/api/favoritos`, {
         method: isFavorite ? "DELETE" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -205,7 +207,7 @@ const MovieDetails = () => {
     if (!newReview.trim()) return setSubmitError("Debes escribir una reseña");
 
     try {
-      const response = await fetch("http://localhost:3000/api/resenias", {
+      const response = await fetch(`${API_URL}/api/resenias`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -278,7 +280,7 @@ const MovieDetails = () => {
   const handleSaveEdit = async (reviewId) => {
     try {
       const response = await fetch(
-        `http://localhost:3000/api/resenias/${reviewId}`,
+        `${API_URL}/api/resenias/${reviewId}`,
         {
           method: "PUT",
           headers: {
@@ -310,7 +312,6 @@ const MovieDetails = () => {
 
       setReviews(updatedReviews);
 
-      // Recalculate average rating
       const newAverage = (
         updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length
       ).toFixed(1);
@@ -332,7 +333,7 @@ const MovieDetails = () => {
     setShowConfirm(false);
     try {
       const response = await fetch(
-        `http://localhost:3000/api/peliculas/${id}`,
+        `${API_URL}/api/peliculas/${id}`,
         {
           method: "DELETE",
           headers: {
@@ -368,7 +369,7 @@ const MovieDetails = () => {
       console.log("[Frontend] Iniciando eliminación de reseña ID:", reviewId);
 
       const response = await fetch(
-        `http://localhost:3000/api/resenias/${reviewId}`,
+        `${API_URL}/api/resenias/${reviewId}`,
         {
           method: "DELETE",
           headers: {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Header from "./components/Header";
 import "./AgregarPelicula.css";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const AgregarPelicula = () => {
   const [formData, setFormData] = useState({
     titulo: "",
@@ -81,7 +83,7 @@ const AgregarPelicula = () => {
 
     const fetchGeneros = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/generos");
+        const response = await fetch(`${API_URL}/api/generos`);
         const data = await response.json();
         if (response.ok) {
           setGeneros(data);
@@ -137,7 +139,7 @@ const AgregarPelicula = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/agregarPelicula",
+        `${API_URL}/api/agregarPelicula`,
         {
           method: "POST",
           body: formDataToSend,
