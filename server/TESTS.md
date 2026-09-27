@@ -1,6 +1,6 @@
 # Tests de integración
 
-130 tests sobre los 20 endpoints de la API, sin necesidad de MySQL: la conexión
+142 tests sobre los 20 endpoints de la API, sin necesidad de MySQL: la conexión
 se sustituye por un doble que responde el patrón de dos pasos que usan los
 handlers.
 
@@ -18,6 +18,43 @@ npm test
 | `__tests__/contrato-sp.test.js` | Que cada endpoint invoque su procedimiento con los argumentos en el orden esperado, y que ningún handler emita DML directo |
 | `__tests__/comportamiento.test.js` | La traducción de `@resultado`/`@mensaje` a códigos HTTP, y la respuesta ante fallo de base de datos |
 | `__tests__/inventario.test.js` | Que las 20 rutas registradas estén cubiertas, y documenta tres huecos conocidos |
+| `__tests__/sql-consistencia.test.js` | Que los `.sql` estén de acuerdo con el código que los invoca: nombres de tabla, orden de carga y credenciales |
+
+## Por qué hay un archivo que no usa el doble de MySQL
+
+Los otros cuatro archivos usan `helpers/mock-db.js`, que responde lo que le
+pidan. Pasan aunque los `.sql` estén rotos, porque nunca los leen. Eso es
+justo lo que pasó: los 130 tests estaban en verde mientras el esquema no cargaba
+y 15 de los 17 procedimientos fallaban fuera de Windows.
+
+`sql-consistencia.test.js` lee `Prograweb 2.sql`, `Stored Procedures.sql` y
+`server.js` del disco y los contrasta entre sí. No hace falta una base de datos
+para eso, y es el único archivo que puede fallar por esa causa.
+
+Lo que fija, y por qué:
+
+| Test | Bug que ya encontró |
+| --- | --- |
+| 8 tablas en minúscula | El esquema creaba `Usuarios`/`Generos`/`Peliculas` y los procedimientos las pedían en minúscula: 15 de 17 rotos en Linux y macOS |
+| Sin `select * from` de depuración | El primero iba antes de que existiera su tabla y abortaba la carga con error 1146 |
+| `rol` sembrada | `usuarios.rol_id` tiene FK a `rol(id)`; con la tabla vacía, todo registro fallaba con 1452 |
+| Sin `INSERT` en `usuarios` | Era una contraseña de administrador en claro, en un repositorio público |
+| Sin columna duplicada | `reseñas` declaraba `fecha_actualizacion` dos veces: error 1060 |
+| `USE` y `SET NAMES utf8mb4` en los `.sql` | Sin el primero, error 1046; sin el segundo, los acentos de `contraseña` y `reseñas` no se reconocen |
+| Todo `CALL` de `server.js` existe en el `.sql` | `sp_ModificarPelicula` y `sp_EliminarPelicula` no estaban definidos: error 1305 y dos endpoints en 500 |
+| Los parámetros del `CALL` son los que declara la firma | La firma no es libre; si uno de los dos lados cambia y el otro no, falla al ejecutar |
+
+Para comprobar que el guardián sirve, se rompieron las cosas a mano y se
+volvieron a arreglar:
+
+| Mutación | Resultado |
+| --- | --- |
+| Se volvió a poner `CREATE TABLE Usuarios` | 3 de los 10 tests de entonces fallan |
+| Se borró `sp_EliminarPelicula` del `.sql` | 1 de los 12 falla: el que comprueba que todo `CALL` existe |
+| Se añadió `IN p_extra` a la firma de `sp_ModificarPelicula` | 1 de los 12 falla: el que compara el conteo de parámetros |
+
+La segunda de esas tres es la que importa: era un bug real, y los 130 tests con
+mocks no lo veían porque el doble responde a cualquier `CALL`.
 
 ## El patrón de dos pasos
 

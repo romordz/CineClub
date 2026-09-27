@@ -1,4 +1,6 @@
-require("dotenv").config();
+// quiet: true evita que dotenv >=17 imprima su banner a stderr en cada carga
+// (la suite corre 130 tests y el banner se repetia en cada archivo).
+require("dotenv").config({ quiet: true });
 
 const express = require("express");
 const mysql = require("mysql2");
@@ -619,7 +621,7 @@ app.put("/api/resenias/:id", (req, res) => {
   }
 
   db.query(
-    "UPDATE Reseñas SET comentario = ?, puntuacion = ?, fecha_actualizacion = NOW() WHERE id = ?",
+    "UPDATE reseñas SET comentario = ?, puntuacion = ?, fecha_actualizacion = NOW() WHERE id = ?",
     [comentario, puntuacion, reviewId],
     (err, result) => {
       if (err) {

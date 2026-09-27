@@ -37,15 +37,47 @@ mysql -u root -p < "Prograweb 2.sql"     # esquema: 8 tablas
 mysql -u root -p < "Stored Procedures.sql"  # procedimientos
 ```
 
-> **El esquema no es reproducible tal como está.** En `Prograweb 2.sql`, la tabla
-> `Peliculas` declara `FOREIGN KEY (genero_id) REFERENCES Generos(id)` en la
-> línea 40, pero `Generos` no se crea hasta la línea 45. MySQL rechaza la
-> sentencia. Hay que crear `Generos` antes que `Peliculas`, o envolver la carga
-> en `SET FOREIGN_KEY_CHECKS = 0; ... SET FOREIGN_KEY_CHECKS = 1;`.
+El esquema **no siembra ninguna cuenta**: no hay usuario con el que entrar la
+primera vez. `Prograweb 2.sql` incluye el `INSERT` del administrador como
+ejemplo comentado; descoméntalo y cambia el correo y la contraseña antes de
+correrlo, o crea el usuario desde el registro de la app (que asigna `rol_id = 1`).
+Para administrar necesitas `rol_id = 2`, así que el `INSERT` manual es el camino
+corto la primera vez.
+
+> **Lo que había que arreglar para que esto cargara, y ya está arreglado.** Los
+> comandos de arriba se ejecutaron completos contra un MySQL 8.0 limpio y
+> cargan 8 tablas y 19 procedimientos sin un solo error. Para llegar ahí hizo
+> falta corregir cuatro cosas, todas en el `.sql`:
 >
-> Además `Stored Procedures.sql` define 17 de los 18 procedimientos que la API
-> invoca: faltan `sp_EliminarPelicula` y `sp_ModificarPelicula`, así que un
-> clon limpio no corre la API completa.
+> 1. **Los `select * from` de depuración.** Cuatro sentencias de las que dejaste
+>    al iterar; la primera (`select * from usuarios;`, antes de que la tabla
+>    existiera) abortaba el script entero con error 1146. El cliente `mysql`
+>    se detiene en el primer error, así que un clon limpio se quedaba con cero
+>    tablas.
+> 2. **El orden de las claves foráneas.** `peliculas` declara
+>    `FOREIGN KEY (genero_id) REFERENCES generos(id)` y `generos` se crea
+>    después. Ahora la carga va envuelta en `SET FOREIGN_KEY_CHECKS = 0`.
+> 3. **Una columna duplicada.** `reseñas` declaraba `fecha_actualizacion` en el
+>    `CREATE TABLE` y luego un `ALTER TABLE` intentaba añadirla otra vez
+>    (error 1060).
+> 4. **Las mayúsculas de los nombres de tabla.** El esquema creaba
+>    `Usuarios`, `Generos` y `Peliculas`, pero los procedimientos las pedían en
+>    minúscula. En Windows MySQL da igual porque `lower_case_table_names = 1`;
+>    en Linux y macOS es error 1146, y **15 de los 17 procedimientos no
+>    funcionaban fuera de Windows**. Todos los nombres están ahora en minúscula.
+>
+> Más `SET NAMES utf8mb4` al principio de cada `.sql`: los acentos de
+> `contraseña`, `reseñas` y `Acción` son UTF-8 de dos bytes y sin esa línea el
+> cliente los manda como latin1 y MySQL no reconoce los identificadores.
+>
+> **Lo que faltaba y ya no:** de los 18 procedimientos que la API invoca, el
+> `.sql` solo definía 16. `sp_ModificarPelicula` y `sp_EliminarPelicula` no
+> existían, así que `POST /api/modificarPelicula` y
+> `DELETE /api/peliculas/:id` devolvían 500 con `ER_SP_DOES_NOT_EXIST`
+> (error 1305). Ahora los 18 están definidos y los dos endpoints responden.
+> `sql-consistencia.test.js` comprueba que todo `CALL` de `server.js` tenga su
+> procedimiento y que la firma declare los parámetros que la llamada pasa, así
+> que esto no se puede volver a romper en silencio.
 
 ### API
 
@@ -53,7 +85,7 @@ mysql -u root -p < "Stored Procedures.sql"  # procedimientos
 cd server
 npm install
 npm start        # http://localhost:3000
-npm test         # 130 tests, sin MySQL
+npm test         # 142 tests, sin MySQL
 ```
 
 La conexión a MySQL se configura con variables de entorno: copia
@@ -101,7 +133,7 @@ Tabla generada desde `server/server.js`; no escrita a mano.
 | `DELETE /api/favoritos` | `sp_EliminarFavorito` | `Faltan campos obligatorios` | `usuario_id`, `pelicula_id` |
 | `GET /api/favoritos/usuario/:usuarioId` | `sp_ObtenerFavoritosPorUsuario` | — | `usuarioId` |
 
-### Los 18 procedimientos
+### Los procedimientos
 
 | Procedimiento | Qué hace |
 | --- | --- |
@@ -112,8 +144,8 @@ Tabla generada desde `server/server.js`; no escrita a mano.
 | `sp_AgregarPelicula` | Alta de película, valida que el género exista y evita duplicados por título + director |
 | `sp_BuscarPeliculas` | Listado con filtro por texto |
 | `sp_ObtenerDetallePelicula` | Detalle de una película |
-| `sp_ModificarPelicula` | Actualización de película |
-| `sp_EliminarPelicula` | Baja de película |
+| `sp_ModificarPelicula` | Actualización de película; valida que exista y que el género sea válido, y con `COALESCE` conserva la imagen si el formulario no manda archivo |
+| `sp_EliminarPelicula` | Baja de película; borra primero sus reseñas y favoritos, porque las dos tablas tienen `DELETE_RULE NO ACTION` sobre `peliculas` y sin eso un `DELETE` directo falla con error 1451 |
 | `sp_ObtenerGeneros` | Catálogo de géneros |
 | `sp_CrearResena` | Alta de reseña: valida usuario, película, duplicado y rango de puntuación |
 | `sp_ActualizarResena` | Actualización de reseña — **definido pero nunca invocado** |
@@ -126,22 +158,30 @@ Tabla generada desde `server/server.js`; no escrita a mano.
 | `sp_ObtenerFavoritosPorUsuario` | Favoritos de un usuario |
 
 (19 filas: 18 que la API invoca más `sp_ActualizarResena`, que está definido y
-no se usa.)
+no se usa. Los 18 que la API invoca existen, que es lo que comprueba
+`sql-consistencia.test.js`.)
 
 ## Esquema
 
-8 tablas: 6 de dominio y 2 de bitácora.
+8 tablas: 6 de dominio y 2 de bitácora. Los nombres van todos en minúscula a
+propósito — MySQL en Linux y macOS distingue mayúsculas en los identificadores
+(`lower_case_table_names = 0`), y en Windows no. Ver la nota de instalación.
 
 | Tabla | Columnas |
 | --- | --- |
-| `Rol` | `id`, `nombre` |
-| `Usuarios` | `id`, `nombre`, `email` (único), `contraseña`, `fecha_nacimiento`, `avatar`, `fecha_registro`, `rol_id` → `Rol`, `activo` |
-| `Generos` | `id`, `nombre` |
-| `Peliculas` | `id`, `titulo`, `descripcion`, `fecha_lanzamiento`, `genero_id` → `Generos`, `imagen`, `director` |
-| `Reseñas` | `id`, `usuario_id` → `Usuarios`, `pelicula_id` → `Peliculas`, `comentario`, `puntuacion` (CHECK 1–5), `fecha_creacion`, `fecha_actualizacion` |
-| `Favoritos` | `id`, `usuario_id` → `Usuarios`, `pelicula_id` → `Peliculas`, `fecha_agregado` |
+| `rol` | `id`, `nombre` |
+| `usuarios` | `id`, `nombre`, `email` (único), `contraseña`, `fecha_nacimiento`, `avatar`, `fecha_registro`, `rol_id` → `rol`, `activo` |
+| `generos` | `id`, `nombre` |
+| `peliculas` | `id`, `titulo`, `descripcion`, `fecha_lanzamiento`, `genero_id` → `generos`, `imagen`, `director` |
+| `reseñas` | `id`, `usuario_id` → `usuarios`, `pelicula_id` → `peliculas`, `comentario`, `puntuacion` (CHECK 1–5), `fecha_creacion`, `fecha_actualizacion` |
+| `favoritos` | `id`, `usuario_id` → `usuarios`, `pelicula_id` → `peliculas`, `fecha_agregado` |
 | `error_logs` | `id`, `procedimiento`, `mensaje`, `fecha` — **creada, nunca escrita** |
 | `debug_logs` | `id`, `mensaje`, `fecha` — **creada, nunca escrita** |
+
+`rol` se siembra con dos filas (`1 = Usuario`, `2 = Administrador`). No es
+cosmético: `usuarios.rol_id` tiene `FOREIGN KEY REFERENCES rol(id)`, así que sin
+esas filas cualquier registro falla con error 1452, y el front decide qué
+pantallas admin mostrar comparando `user.rol_id === 2`.
 
 Los parámetros que manda la API no siempre se llaman como la columna:
 `sinopsis` → `Peliculas.descripcion` y `anio` → `Peliculas.fecha_lanzamiento`.
@@ -149,13 +189,37 @@ El mapeo está dentro de cada procedimiento.
 
 ## Tests
 
-130 tests, sin MySQL. Ver [`server/TESTS.md`](server/TESTS.md).
+142 tests, sin MySQL. Ver [`server/TESTS.md`](server/TESTS.md).
 
 ```bash
 cd server && npm test
 ```
 
 La suite también corre en CI: [.github/workflows/test.yml](.github/workflows/test.yml).
+
+### Lo que la suite con mocks no puede cubrir
+
+Los 130 tests de los otros cuatro archivos usan un doble de MySQL, así que pasan aunque el `.sql` esté roto.
+Por eso el proyecto se verificó además contra un **MySQL 8.0 real** en
+contenedor, y esa verificación encontró cosas que los mocks no ven:
+
+- El `.sql` no cargaba. El primer `select * from usuarios;` —una sentencia de
+  depuración que quedó antes de que existiera la tabla— abortaba el script con
+  error 1146 y el clon limpio se quedaba sin ninguna tabla. Los tests con doble
+  nunca lo detectan, porque no leen el archivo.
+- Los 15 procedimientos que fallaban fuera de Windows por las mayúsculas de los
+  nombres de tabla. Otra vez invisible para los mocks: el doble responde lo que
+  le pidan.
+- Los dos procedimientos que no existían, `sp_ModificarPelicula` y
+  `sp_EliminarPelicula`. `server.js` los llamaba igual: error 1305 y dos
+  endpoints en 500. Invisible para los mocks por la misma razón.
+
+Ejercitados contra la base real, en este estado: las 21 llamadas responden como
+deben, incluidas las que devuelven errores a propósito (400 por correo
+duplicado, 401 por contraseña incorrecta, 409 por reseña duplicada, 400 por id
+no numérico). La única que sale del guion es
+`DELETE /api/peliculas/abc`, que devuelve 500 en vez de 400: es el hueco 2 de
+abajo, y sigue abierto a propósito.
 
 ## Health check
 
@@ -175,7 +239,7 @@ Están escritos en `server/__tests__/inventario.test.js` para que no se pierdan 
 vista. No son defects pendientes de hacer: son el estado real, medido.
 
 1. **`PUT /api/resenias/:id` se salta la capa de procedimientos.** Es el único
-   endpoint que escribe DML en el handler, con un `UPDATE Reseñas` directo. Y
+   endpoint que escribe DML en el handler, con un `UPDATE reseñas` directo. Y
    `sp_ActualizarResena` está definido en el `.sql` y no se invoca desde ningún
    sitio, así que la misma lógica existe en dos lugares y solo uno se usa.
    (`GET /api/health` también queda fuera de la capa, pero a propósito: no tiene
@@ -192,12 +256,19 @@ vista. No son defects pendientes de hacer: son el estado real, medido.
    produce un error de base de datos (500) en lugar de un 400. (`health` no
    necesita validación de entrada; los otros 7 sí.)
 
-4. **Credenciales sembradas en el SQL.** La conexión del server ya no vive en el
-   código: se lee de `server/.env` (`.env.example` documenta las variables, y el
-   `.env` real está en `.gitignore`). Queda pendiente el dato sembrado:
-   `Prograweb 2.sql` crea una cuenta `admin@example.com` con contraseña en
-   claro. No es de producción, pero el repositorio es público.
+4. **La conexión del server se sale del código, pero el password se queda en
+   claro en la base.** La conexión ya no está en `server.js`: se lee de
+   `server/.env`, `.env.example` documenta las variables y el `.env` real está
+   en `.gitignore`. `Prograweb 2.sql` tampoco siembra ninguna cuenta — el
+   `INSERT` del administrador es ahora un ejemplo comentado, porque publicar una
+   contraseña conocida da acceso a cualquier base que alguien cree desde este
+   repositorio. Ese archivo **no** se puede mover a `.env`: es SQL que se
+   ejecuta para crear el esquema.
 
 5. **Contraseñas sin cifrar.** La columna es `Usuarios.contraseña VARCHAR(255)`
-   y `sp_LoginUsuario` la compara directamente. `bcrypt` figura en
-   `dependencies` pero no se usa en ningún lado.
+   y `sp_LoginUsuario` compara directamente contra lo que llega en el `POST
+   /api/login`. El ancho de la columna ya daría para un hash (`bcrypt` produce
+   60 caracteres) y `dotenv` ya está en `dependencies`, así que el trabajo
+   pendiente es: hashear en el registro y en el update, comparar con
+   `bcrypt.compare` en el login, y migrar las filas existentes. No se hizo
+   porque rompe las cuentas que ya existieran en una base desplegada.

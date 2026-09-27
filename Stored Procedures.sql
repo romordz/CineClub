@@ -1,3 +1,6 @@
+SET NAMES utf8mb4;
+USE PrograWeb_2;
+
 DELIMITER //
 
 CREATE PROCEDURE sp_RegistrarUsuario(
@@ -307,7 +310,7 @@ BEGIN
         COALESCE(AVG(r.puntuacion), 0) AS promedio
     FROM peliculas p
     JOIN generos g ON p.genero_id = g.id
-    LEFT JOIN Reseñas r ON p.id = r.pelicula_id
+    LEFT JOIN reseñas r ON p.id = r.pelicula_id
     WHERE 
         (p_search_term IS NULL OR p_search_term = '' OR p.titulo LIKE CONCAT('%', p_search_term, '%'))
     GROUP BY p.id
@@ -327,7 +330,7 @@ BEGIN
         COUNT(r.id) AS total_resenias
     FROM peliculas p
     JOIN generos g ON p.genero_id = g.id
-    LEFT JOIN Reseñas r ON p.id = r.pelicula_id
+    LEFT JOIN reseñas r ON p.id = r.pelicula_id
     WHERE p.id = p_movie_id
     GROUP BY p.id;
 END //
@@ -348,7 +351,7 @@ BEGIN
         r.fecha_creacion, 
         u.nombre as autor,
         u.avatar as autor_avatar
-    FROM Reseñas r
+    FROM reseñas r
     JOIN usuarios u ON r.usuario_id = u.id
     WHERE r.pelicula_id = p_pelicula_id
     ORDER BY r.fecha_creacion DESC;
@@ -389,7 +392,7 @@ BEGIN
     
     -- Verificar si el usuario ya reseñó esta película
     SELECT COUNT(*) INTO v_resena_existe 
-    FROM Reseñas 
+    FROM reseñas 
     WHERE usuario_id = p_usuario_id AND pelicula_id = p_pelicula_id;
     
     IF v_usuario_existe = 0 THEN
@@ -406,7 +409,7 @@ BEGIN
         SET p_mensaje = 'La puntuación debe ser entre 1 y 5';
     ELSE
         -- Insertar nueva reseña
-        INSERT INTO Reseñas (usuario_id, pelicula_id, comentario, puntuacion, fecha_creacion)
+        INSERT INTO reseñas (usuario_id, pelicula_id, comentario, puntuacion, fecha_creacion)
         VALUES (p_usuario_id, p_pelicula_id, p_comentario, p_puntuacion, NOW());
         
         SET p_resena_id = LAST_INSERT_ID();
@@ -441,7 +444,7 @@ BEGIN
     START TRANSACTION;
     
     -- Verificar si la reseña existe
-    SELECT COUNT(*) INTO v_resena_existe FROM Reseñas WHERE id = p_resena_id;
+    SELECT COUNT(*) INTO v_resena_existe FROM reseñas WHERE id = p_resena_id;
     
     IF v_resena_existe = 0 THEN
         SET p_resultado = 0;
@@ -451,7 +454,7 @@ BEGIN
         SET p_mensaje = 'La puntuación debe ser entre 1 y 5';
     ELSE
         -- Actualizar reseña
-        UPDATE Reseñas 
+        UPDATE reseñas 
         SET 
             comentario = COALESCE(p_comentario, comentario),
             puntuacion = COALESCE(p_puntuacion, puntuacion),
@@ -489,14 +492,14 @@ BEGIN
     START TRANSACTION;
     
     -- Verificar si la reseña existe
-    SELECT COUNT(*) INTO v_resena_existe FROM Reseñas WHERE id = p_resena_id;
+    SELECT COUNT(*) INTO v_resena_existe FROM reseñas WHERE id = p_resena_id;
     
     IF v_resena_existe = 0 THEN
         SET p_resultado = 0;
         SET p_mensaje = 'Reseña no encontrada';
     ELSE
         -- Eliminar la reseña
-        DELETE FROM Reseñas WHERE id = p_resena_id;
+        DELETE FROM reseñas WHERE id = p_resena_id;
         
         SET p_resultado = 1;
         SET p_mensaje = 'Reseña eliminada correctamente';
@@ -544,9 +547,9 @@ BEGIN
             p.imagen AS pelicula_imagen,
             g.nombre AS genero_nombre,
             DATE_FORMAT(r.fecha_creacion, '%d/%m/%Y %H:%i') AS fecha_formateada
-        FROM Reseñas r
-        JOIN Peliculas p ON r.pelicula_id = p.id
-        JOIN Generos g ON p.genero_id = g.id
+        FROM reseñas r
+        JOIN peliculas p ON r.pelicula_id = p.id
+        JOIN generos g ON p.genero_id = g.id
         WHERE r.usuario_id = p_usuario_id
         ORDER BY r.fecha_creacion DESC;
         
@@ -593,14 +596,14 @@ BEGIN
         SET p_mensaje = 'Película no encontrada';
     ELSE
         SELECT COUNT(*) INTO v_existe_favorito 
-        FROM Favoritos 
+        FROM favoritos 
         WHERE usuario_id = p_usuario_id AND pelicula_id = p_pelicula_id;
         
         IF v_existe_favorito > 0 THEN
             SET p_resultado = 0;
             SET p_mensaje = 'Ya existe en favoritos';
         ELSE
-            INSERT INTO Favoritos (usuario_id, pelicula_id, fecha_agregado)
+            INSERT INTO favoritos (usuario_id, pelicula_id, fecha_agregado)
             VALUES (p_usuario_id, p_pelicula_id, NOW());
             
             SET p_resultado = 1;
@@ -651,7 +654,7 @@ BEGIN
         SET p_es_favorito = FALSE;
     ELSE
         SELECT COUNT(*) INTO v_existe_favorito 
-        FROM Favoritos 
+        FROM favoritos 
         WHERE usuario_id = p_usuario_id AND pelicula_id = p_pelicula_id;
         
         SET p_resultado = 1;
@@ -705,7 +708,7 @@ BEGIN
     ELSE
         -- Verificar si existe en favoritos
         SELECT COUNT(*) INTO v_existe_favorito 
-        FROM Favoritos 
+        FROM favoritos 
         WHERE usuario_id = p_usuario_id AND pelicula_id = p_pelicula_id;
         
         IF v_existe_favorito = 0 THEN
@@ -714,7 +717,7 @@ BEGIN
             SET p_filas_afectadas = 0;
         ELSE
             -- Eliminar el favorito
-            DELETE FROM Favoritos 
+            DELETE FROM favoritos 
             WHERE usuario_id = p_usuario_id AND pelicula_id = p_pelicula_id;
             
             SET p_filas_afectadas = ROW_COUNT();
@@ -769,14 +772,131 @@ BEGIN
             p.id AS pelicula_id,
             g.nombre AS genero_nombre,
             DATE_FORMAT(f.fecha_agregado, '%d/%m/%Y %H:%i') AS fecha_formateada
-        FROM Favoritos f
-        JOIN Peliculas p ON f.pelicula_id = p.id
-        JOIN Generos g ON p.genero_id = g.id
+        FROM favoritos f
+        JOIN peliculas p ON f.pelicula_id = p.id
+        JOIN generos g ON p.genero_id = g.id
         WHERE f.usuario_id = p_usuario_id
         ORDER BY f.fecha_agregado DESC;
         
         SET p_resultado = 1;
-        SET p_mensaje = 'Favoritos obtenidos correctamente';
+        SET p_mensaje = 'favoritos obtenidos correctamente';
+    END IF;
+    
+    COMMIT;
+END //
+
+DELIMITER ;
+
+-- ---------------------------------------------------------------------------
+-- Los dos que faltaban. Los invoca server.js en `POST /api/modificarPelicula`
+-- y `DELETE /api/peliculas/:id`, y sin ellos esos dos endpoints devolvian 500
+-- con error 1305 (ER_SP_DOES_NOT_EXIST). Las firmas estan fijadas por las
+-- llamadas de server.js, no al reves: si se cambia una, hay que cambiar la otra.
+-- ---------------------------------------------------------------------------
+
+DELIMITER //
+
+CREATE PROCEDURE sp_ModificarPelicula(
+    IN p_id INT,
+    IN p_titulo VARCHAR(255),
+    IN p_sinopsis TEXT,
+    IN p_director VARCHAR(255),
+    IN p_genero_id INT,
+    IN p_anio DATE,
+    IN p_imagen LONGTEXT,
+    OUT p_resultado INT,
+    OUT p_mensaje VARCHAR(255)
+)
+BEGIN
+    DECLARE v_existe INT;
+    DECLARE v_genero_existe INT;
+    
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_resultado = 0;
+        SET p_mensaje = 'Error en la base de datos al modificar la película';
+        ROLLBACK;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Verificar que la película existe
+    SELECT COUNT(*) INTO v_existe FROM peliculas WHERE id = p_id;
+    
+    -- Verificar que el género existe, igual que hace sp_AgregarPelicula
+    SELECT COUNT(*) INTO v_genero_existe FROM generos WHERE id = p_genero_id;
+    
+    IF v_existe = 0 THEN
+        SET p_resultado = 0;
+        SET p_mensaje = 'La película no existe';
+    ELSEIF v_genero_existe = 0 THEN
+        SET p_resultado = 0;
+        SET p_mensaje = 'El género especificado no existe';
+    ELSE
+        -- COALESCE en imagen: si el formulario no manda archivo, se conserva el
+        -- que habia en vez de dejar la columna en NULL.
+        UPDATE peliculas
+        SET titulo = p_titulo,
+            descripcion = p_sinopsis,
+            director = p_director,
+            genero_id = p_genero_id,
+            fecha_lanzamiento = p_anio,
+            imagen = COALESCE(p_imagen, imagen)
+        WHERE id = p_id;
+        
+        SET p_resultado = 1;
+        SET p_mensaje = 'Película modificada correctamente';
+    END IF;
+    
+    COMMIT;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE sp_EliminarPelicula(
+    IN p_id INT,
+    OUT p_resultado INT,
+    OUT p_mensaje VARCHAR(255)
+)
+BEGIN
+    DECLARE v_existe INT;
+    DECLARE v_resenas INT;
+    DECLARE v_favoritos INT;
+    
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_resultado = 0;
+        SET p_mensaje = 'Error en la base de datos al eliminar la película';
+        ROLLBACK;
+    END;
+    
+    START TRANSACTION;
+    
+    SELECT COUNT(*) INTO v_existe FROM peliculas WHERE id = p_id;
+    
+    IF v_existe = 0 THEN
+        SET p_resultado = 0;
+        SET p_mensaje = 'La película no existe';
+    ELSE
+        -- `favoritos` y `reseñas` cuelgan de `peliculas` con DELETE_RULE NO ACTION,
+        -- o sea que no hay cascada. Un DELETE directo sobre una película con un
+        -- solo comentario falla con error 1451, y el endpoint devolvia 500. Se
+        -- borran los dependientes primero y dentro de la misma transacción: si
+        -- algo falla a medias, el ROLLBACK del manejador no deja nada a medias.
+        SELECT COUNT(*) INTO v_resenas FROM reseñas WHERE pelicula_id = p_id;
+        SELECT COUNT(*) INTO v_favoritos FROM favoritos WHERE pelicula_id = p_id;
+        
+        DELETE FROM reseñas WHERE pelicula_id = p_id;
+        DELETE FROM favoritos WHERE pelicula_id = p_id;
+        DELETE FROM peliculas WHERE id = p_id;
+        
+        SET p_resultado = 1;
+        SET p_mensaje = CONCAT(
+            'Película eliminada correctamente (',
+            v_resenas, ' reseña(s) y ', v_favoritos, ' favorito(s) asociados eliminados)'
+        );
     END IF;
     
     COMMIT;
